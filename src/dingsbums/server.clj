@@ -47,7 +47,7 @@
 
       (ops/op? ev)
       (let [[op arg] ev]
-        (swap! s/sessions (if (= op :op/upsert) s/upsert s/delete) sid arg)
+        (swap! s/sessions (case op :op/upsert s/upsert :op/patch s/patch :op/delete s/delete) sid arg)
         (send-to! sid ch (pr-str ev))))))
 
 (defn- ws [req sid]

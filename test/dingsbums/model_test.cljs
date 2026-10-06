@@ -83,13 +83,25 @@
 
 (deftest a-gesture-is-one-history-entry
   (let [start (m/movable objs #{"a" "b"})
-        db2 (-> db
-                (update :objects m/apply-changes (m/moved start 5 5))
-                (update :objects m/apply-changes (m/moved start 10 0)))
+        db2 (update db :objects m/apply-changes (m/moved objs start 5 5))
+        db2 (update db2 :objects m/apply-changes (m/moved (:objects db2) start 10 0))
         [db3 ops] (m/finish-gesture db2 start)]
     (is (= 1 (count (get-in db3 [:history :undo]))))
-    (is (= :op/upsert (ffirst ops)))
-    (is (= #{(assoc a :x 10) (assoc b :x 60)} (set (second (first ops)))))
+    (is (= :op/patch (ffirst ops)) "gestures send geometry only, never an image's :src")
+    (is (= #{{:id "a" :x 10 :y 0 :w 10 :h 10} {:id "b" :x 60 :y 0 :w 10 :h 10}} (set (second (first ops)))))
     (is (= start (:before (peek (get-in db3 [:history :undo])))))
     (is (= objs (:objects (first (m/undo db3)))))
     (is (= [db []] (m/finish-gesture db start)) "no movement, no entry")))
+
+(deftest moves-apply-to-the-current-state
+  (let [start (m/movable objs #{"a" "b"})]
+    (is (= {"b" (assoc b :x 55)} (m/moved (dissoc objs "a") start 5 0)) "an object deleted meanwhile stays deleted")
+    (is (= "#e57373" (get-in (m/moved (assoc-in objs ["a" :fill] "#e57373") start 5 0) ["a" :fill]))
+        "a remote fill made mid-drag is kept")
+    (is (= {"b" (assoc b :x 55)} (m/moved (assoc-in objs ["a" :locked?] true) start 5 0)) "locked meanwhile: stays put"))
+  (let [[d ops] (m/finish-gesture (update db :objects dissoc "a") (m/movable objs #{"a"}))]
+    (is (= [] ops) "a gesture on an object deleted meanwhile records and sends nothing")
+    (is (empty? (get-in d [:history :undo])))))
+
+(deftest upserts-go-one-object-per-frame
+  (is (= [[:op/upsert [a]] [:op/upsert [b]] [:op/delete ["ab"]]] (m/ops-for {"a" a "b" b "ab" nil}))))

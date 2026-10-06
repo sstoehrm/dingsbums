@@ -16,6 +16,8 @@
 
 (defn upsert [m sid objs] (when-exists m sid #(update-in % [sid :objects] ops/upsert objs)))
 
+(defn patch [m sid patches] (when-exists m sid #(update-in % [sid :objects] ops/patch patches)))
+
 (defn delete [m sid ids] (when-exists m sid #(update-in % [sid :objects] ops/delete ids)))
 
 (defn replace-objects [m sid objects] (when-exists m sid #(assoc-in % [sid :objects] objects)))

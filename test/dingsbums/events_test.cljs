@@ -50,7 +50,7 @@
   (is (nil? (ev/session-exists (assoc board :session "other") "s1")) "stale answer for a session we left")
   (is (= {:url "ws://localhost/ws" :params {:session "s1"}}
          (select-keys (:hammer.tubes/create (ev/session-exists (assoc board :route :checking) "s1")) [:url :params])))
-  (let [fx (ev/session-not-found (assoc board :route :checking))]
+  (let [fx (ev/session-not-found (assoc board :route :checking) "s1")]
     (is (= [:landing "Session not found"] ((juxt :route :error) (:db fx))))
     (is (= "" (:set-hash fx))))
   (let [fx (ev/session-missing with-objs)]
@@ -90,8 +90,8 @@
           fx3 (ev/pointer-up (:db fx2) (pe 30 10 :t 50))]
       (is (= #{"a"} (:selection db)))
       (is (nil? (:tube/send fx1)) "throttled")
-      (is (= [[:op/upsert [(assoc sticky :x 20)]]] (:tube/send fx2)))
-      (is (= [[:op/upsert [(assoc sticky :x 20)]]] (:tube/send fx3)) "final position on pointer-up")
+      (is (= [[:op/patch [{:id "a" :x 20 :y 0 :w 100 :h 100}]]] (:tube/send fx2)))
+      (is (= [[:op/patch [{:id "a" :x 20 :y 0 :w 100 :h 100}]]] (:tube/send fx3)) "final position on pointer-up")
       (is (= 1 (count (get-in fx3 [:db :history :undo]))))))
   (testing "locked objects are selected but stay put"
     (let [fx (drag (assoc-in with-objs [:objects "a" :locked?] true) [10 10] [60 60])]
@@ -110,6 +110,28 @@
     (let [fx (drag (assoc with-objs :selection #{"a"}) [100 100] [150 120])]
       (is (= {:x 0 :y 0 :w 150 :h 120} (select-keys (get-in fx [:db :objects "a"]) [:x :y :w :h])))
       (is (= 1 (count (get-in fx [:db :history :undo])))))))
+
+(deftest remote-changes-during-a-drag
+  (let [db (:db (ev/pointer-down with-objs (pe 10 10)))
+        db (:db (ev/remote-delete db ["a"]))
+        fx (ev/pointer-move db (pe 50 10 :t 100))
+        fx2 (ev/pointer-up (:db fx) (pe 50 10 :t 100))]
+    (is (nil? (get-in fx [:db :objects "a"])) "a drag does not resurrect an object deleted by someone else")
+    (is (nil? (:tube/send fx)))
+    (is (nil? (:tube/send fx2))))
+  (let [db (:db (ev/pointer-down (assoc with-objs :selection #{"a"}) (pe 100 100)))
+        db (:db (ev/remote-delete db ["a"]))
+        fx (ev/pointer-move db (pe 150 150 :t 100))]
+    (is (nil? (get-in fx [:db :objects "a"])) "nor does a resize"))
+  (is (= 7 (get-in (ev/remote-patch with-objs [{:id "a" :x 7}]) [:db :objects "a" :x]))))
+
+(deftest stale-answers-are-ignored
+  (is (= [:session/not-found "abc"] (get-in (ev/route-changed ev/initial-db "abc") [:http :on-failure])))
+  (is (nil? (ev/session-not-found (assoc board :session "good") "bad" {})) "a late 404 for a session we left")
+  (is (= :landing (get-in (ev/session-not-found (assoc board :route :checking :session "bad") "bad" {}) [:db :route])))
+  (is (nil? (ev/import-failed (assoc board :session "other") "s1" {})) "a late import answer from another session")
+  (is (some? (ev/import-failed board "s1" {})))
+  (is (nil? (ev/session-created board {:id "new"})) "already on a board"))
 
 (deftest navigation
   (let [db (:db (ev/pointer-down board (pe 100 100 :button 1)))

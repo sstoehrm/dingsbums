@@ -37,8 +37,15 @@
   [objects ids]
   (into {} (comp (remove #(= :connection (:kind %))) (map (juxt :id identity))) (unlocked objects ids)))
 
-(defn moved [start dx dy]
-  (update-vals start #(-> % (update :x + dx) (update :y + dy))))
+(defn moved
+  "Changes moving each object of start ({id obj} at pointer-down) by dx dy, applied
+  to its current state in objects; objects deleted or locked meanwhile are skipped."
+  [objects start dx dy]
+  (into {} (keep (fn [[id o]]
+                   (let [cur (get objects id)]
+                     (when (and cur (not (:locked? cur)))
+                       [id (assoc cur :x (+ (:x o) dx) :y (+ (:y o) dy))]))))
+        start))
 
 (defn group-changes [objects ids]
   (let [os (remove #(= :connection (:kind %)) (keep objects ids))]
@@ -81,11 +88,17 @@
   (reduce-kv (fn [m id o] (if o (assoc m id o) (dissoc m id))) objects changes))
 
 (defn ops-for
-  "The tube events that apply changes on the server and the other clients."
+  "The tube events that apply changes on the server and the other clients: one
+  upsert per object (an image alone can be near the frame limit), one delete."
   [changes]
-  (let [ups (vec (keep val changes))
-        dels (vec (keep (fn [[id o]] (when (nil? o) id)) changes))]
-    (cond-> [] (seq ups) (conj [:op/upsert ups]) (seq dels) (conj [:op/delete dels]))))
+  (let [dels (vec (keep (fn [[id o]] (when (nil? o) id)) changes))]
+    (cond-> (into [] (keep (fn [[_ o]] (when o [:op/upsert [o]]))) changes)
+      (seq dels) (conj [:op/delete dels]))))
+
+(defn patch-ops
+  "The tube events for moved/resized objects: geometry only, never an image's :src."
+  [objs]
+  (if (seq objs) [[:op/patch (mapv #(select-keys % [:id :x :y :w :h]) objs)]] []))
 
 (defn- push-entry [history entry]
   {:undo (vec (take-last history-cap (conj (:undo history []) entry))) :redo []})
@@ -121,7 +134,8 @@
   "[db ops] for a drag/resize that started from `before` ({id obj}) and has
   already been applied to (:objects db): one history entry, final upserts."
   [db before]
-  (let [after (into {} (map (fn [id] [id (get-in db [:objects id])])) (keys before))]
+  (let [after (into {} (keep (fn [id] (when-let [o (get-in db [:objects id])] [id o]))) (keys before))
+        before (select-keys before (keys after))]
     (if (= before after)
       [db []]
-      [(update db :history push-entry {:before before :after after}) (ops-for after)])))
+      [(update db :history push-entry {:before before :after after}) (patch-ops (vals after))])))

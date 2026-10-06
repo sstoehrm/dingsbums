@@ -68,6 +68,20 @@
     (is (= [:op/delete ["a"]] (recv c1)))
     (is (= {} (get-in @s/sessions [sid :objects])))))
 
+(deftest patches-are-applied-and-forwarded
+  (let [sid (create!) c1 (connect sid) c2 (connect sid)]
+    (hello! c1) (hello! c2)
+    (send! c1 [:op/upsert [a]])
+    (recv c2)
+    (send! c1 [:op/patch [{:id "a" :x 40}]])
+    (is (= [:op/patch [{:id "a" :x 40}]] (recv c2)))
+    (is (= 40 (get-in @s/sessions [sid :objects "a" :x])))
+    (send! c2 [:op/delete ["a"]])
+    (recv c1)
+    (send! c1 [:op/patch [{:id "a" :x 50}]])
+    (recv c2)
+    (is (= {} (get-in @s/sessions [sid :objects])) "a late patch does not bring a deleted object back")))
+
 (deftest ops-sent-before-hello-are-in-the-snapshot
   (let [sid (create!) c (connect sid)]
     (send! c [:op/upsert [a]])

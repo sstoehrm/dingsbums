@@ -122,11 +122,15 @@ hammer.tubes protocol: one EDN event vector per text frame, read with
   `[:session/missing]` if the session is gone). The client sends it from the
   tube's `:on-connect`; hammer.tubes flushes queued ops *before* `:on-connect`,
   so the snapshot already contains ops queued while offline.
-- **Receive** `[:op/upsert [obj ...]]` or `[:op/delete [id ...]]`: apply with
-  one `swap!` (delete cascades to connections, `dingsbums.ops`), forward the
-  same frame to the session's other clients. Unreadable frames and events of
-  any other shape are ignored. Objects need a string `:id` of at most 64
-  characters and a keyword `:kind`.
+- **Receive** `[:op/upsert [obj ...]]`, `[:op/patch [{:id :x :y :w :h} ...]]` or
+  `[:op/delete [id ...]]`: apply with one `swap!` (delete cascades to
+  connections; a patch only touches existing objects, so it never resurrects a
+  deleted one; `dingsbums.ops`), forward the same frame to the session's other
+  clients. Unreadable frames and events of any other shape are ignored.
+  Objects need an `:id` of 1–64 `[A-Za-z0-9_-]` and a known `:kind`, may only
+  carry the keys of the data model, each with the right type (numbers for
+  geometry and `:z`, strings for text, src, fill, ends, group; a known `:shape`;
+  boolean `:locked?`).
 - **Frame limit:** http-kit `:max-ws` 20 MB; a larger frame makes http-kit
   close the connection (1009), the client reconnects and resyncs.
 - **Close:** remove the channel; when it was the last, set `:empty-since` now.
@@ -233,8 +237,14 @@ Window `paste` event, ignored while editing text:
 - Incoming `[:op/upsert ...]`, `[:op/delete ...]` and `[:session/snapshot ...]`
   only update `[:objects]` (and drop removed ids from the selection);
   a snapshot also clears history.
-- During a drag or resize the objects update locally every pointer move;
-  upserts go out at most every 33 ms and once more on pointer-up.
+- During a drag or resize the objects update locally every pointer move,
+  applied to their *current* state (a remote fill/lock/delete during the drag is
+  kept); `:op/patch` frames with geometry only go out at most every 33 ms and
+  once more on pointer-up.
+- Upserts go out one object per frame, so a selection of images never exceeds
+  the frame limit.
+- HTTP answers carry the session id they were asked for and are ignored once
+  the user is in another session.
 - `[:session/missing]` destroys the tube and returns to landing with
   "Session expired or not found".
 - Tube `:on-connect` sets online and sends `[:session/hello]`;

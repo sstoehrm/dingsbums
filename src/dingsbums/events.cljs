@@ -22,7 +22,7 @@
 (def send-interval 33)
 (def hit-px 6)
 (def max-image-chars 15000000)
-(def remote-events #{:op/upsert :op/delete :session/snapshot :session/missing})
+(def remote-events #{:op/upsert :op/patch :op/delete :session/snapshot :session/missing})
 (def creating-tools #{:text :frame :shape :sticky})
 
 (reg-fx :tube/send (fn [evs] (run! tubes/send! evs)))
@@ -64,7 +64,7 @@
       {:db (merge db board-reset {:route :checking :session sid :error nil})
        :hammer.tubes/destroy {}
        :http {:uri (str "/api/sessions/" (js/encodeURIComponent sid)) :response-format :text
-              :on-success [:session/exists sid] :on-failure [:session/not-found]}})))
+              :on-success [:session/exists sid] :on-failure [:session/not-found sid]}})))
 
 (defn session-exists [db sid & _]
   (when (= sid (:session db))
@@ -72,8 +72,9 @@
      :hammer.tubes/create {:url (ws-url) :params {:session sid} :on-receive receive
                            :on-connect [:tube/connected] :on-disconnect [:tube/disconnected]}}))
 
-(defn session-not-found [db & _]
-  {:db (assoc db :route :landing :session nil :error "Session not found") :set-hash ""})
+(defn session-not-found [db sid & _]
+  (when (= sid (:session db))
+    {:db (assoc db :route :landing :session nil :error "Session not found") :set-hash ""}))
 
 (defn session-missing [db]
   {:db (merge db board-reset {:route :landing :session nil :error "Session expired or not found"})
@@ -85,7 +86,8 @@
 (defn landing-create [_]
   {:http {:method :post :uri "/api/sessions" :on-success [:session/created] :on-failure [:landing/failed]}})
 
-(defn session-created [db {:keys [id]}] {:db (assoc db :error nil) :set-hash id})
+(defn session-created [db {:keys [id]}]
+  (when-not (= :board (:route db)) {:db (assoc db :error nil) :set-hash id}))
 
 (defn landing-failed [db & _] {:db (assoc db :error "Could not create a session")})
 
@@ -104,6 +106,7 @@
   {:db (prune (assoc db :objects objects :history {:undo [] :redo []} :drag nil))})
 
 (defn remote-upsert [db objs] {:db (update db :objects ops/upsert objs)})
+(defn remote-patch [db patches] {:db (update db :objects ops/patch patches)})
 (defn remote-delete [db ids] {:db (prune (update db :objects ops/delete ids))})
 
 ;; tools, camera, misc
@@ -164,11 +167,12 @@
       (with-ops (press db e (world db e)) ops))))
 
 (defn- live-update
-  "Applies changes locally; sends them when the last send is send-interval ago."
+  "Applies a gesture's changes locally; sends their geometry when the last send is
+  send-interval ago."
   [db changes t]
   (let [db (update db :objects model/apply-changes changes)]
     (if (>= (- t (get-in db [:drag :last-sent])) send-interval)
-      (with-ops (assoc-in db [:drag :last-sent] t) (model/ops-for changes))
+      (with-ops (assoc-in db [:drag :last-sent] t) (model/patch-ops (vals changes)))
       {:db db})))
 
 (defn pointer-move [db {:keys [sx sy t] :as e}]
@@ -178,9 +182,13 @@
              {:db (-> db (update :camera geom/pan (- sx lx) (- sy ly)) (assoc-in [:drag :last] [sx sy]))})
       (:create :band :connect) {:db (assoc-in db [:drag :current] p)}
       :move (let [[ox oy] (:origin drag) [px py] p]
-              (live-update db (model/moved (:start drag) (- px ox) (- py oy)) t))
-      :resize (let [[id o] (first (:start drag))]
-                (live-update db {id (geom/resize o (:handle drag) p)} t))
+              (live-update db (model/moved (:objects db) (:start drag) (- px ox) (- py oy)) t))
+      :resize (let [[id o] (first (:start drag))
+                    cur (get-in db [:objects id])]
+                (live-update db (if (and cur (not (:locked? cur)))
+                                  {id (merge cur (select-keys (geom/resize o (:handle drag) p) [:x :y :w :h]))}
+                                  {})
+                             t))
       nil)))
 
 (defn- create-object [db start end]
@@ -281,13 +289,15 @@
 ;; import
 
 (defn import-file [db file]
-  {:db (assoc db :message "Importing…")
-   :http {:method :post :uri (str "/api/sessions/" (js/encodeURIComponent (:session db)) "/import")
-          :body file :headers {"Content-Type" "application/x-tar"} :response-format :text
-          :on-success [:import/done] :on-failure [:import/failed]}})
+  (let [sid (:session db)]
+    {:db (assoc db :message "Importing…")
+     :http {:method :post :uri (str "/api/sessions/" (js/encodeURIComponent sid) "/import")
+            :body file :headers {"Content-Type" "application/x-tar"} :response-format :text
+            :on-success [:import/done sid] :on-failure [:import/failed sid]}}))
 
-(defn import-done [db & _] {:db (assoc db :message nil)})
-(defn import-failed [db & _] {:db (assoc db :message "Import failed: not a dingsbums export")})
+(defn import-done [db sid & _] (when (= sid (:session db)) {:db (assoc db :message nil)}))
+(defn import-failed [db sid & _]
+  (when (= sid (:session db)) {:db (assoc db :message "Import failed: not a dingsbums export")}))
 
 ;; keys
 
@@ -313,6 +323,7 @@
                 :session/copy-id copy-id
                 :session/snapshot snapshot
                 :op/upsert remote-upsert
+                :op/patch remote-patch
                 :op/delete remote-delete
                 :tube/connected tube-connected
                 :tube/disconnected tube-disconnected
