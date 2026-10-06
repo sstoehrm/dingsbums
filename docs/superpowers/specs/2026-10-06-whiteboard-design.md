@@ -267,3 +267,7 @@ Window `paste` event, ignored while editing text:
 | manual | `bb server`, two browser tabs | live sync, every tool, export → import |
 
 Canvas drawing is verified by eye in the browser.
+
+## TODO
+
+- Fold this design into the concept graph (`spec.edn`) with blend:deduce.
