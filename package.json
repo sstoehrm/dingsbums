@@ -1,0 +1,11 @@
+{
+  "name": "dingsbums",
+  "private": true,
+  "scripts": {
+    "test": "shadow-cljs compile test && node target/test.js"
+  },
+  "devDependencies": {
+    "jsdom": "30.1.1",
+    "shadow-cljs": "3.5.4"
+  }
+}

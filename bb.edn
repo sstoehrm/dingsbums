@@ -7,4 +7,6 @@
                 (let [{:keys [fail error]} (apply t/run-tests nss)]
                   (System/exit (if (zero? (+ fail error)) 0 1))))}
   server {:doc "Run the server: bb server [port] (default 8080)"
-          :task (apply (requiring-resolve 'dingsbums.server/-main) *command-line-args*)}}}
+          :task (apply (requiring-resolve 'dingsbums.server/-main) *command-line-args*)}
+  build {:doc "Release build of the frontend into public/js"
+         :task (shell "npx shadow-cljs release app")}}}
