@@ -1,0 +1,8 @@
+{:paths ["src" "test"]
+ :tasks
+ {test {:doc "Run the backend tests"
+        :requires ([clojure.test :as t])
+        :task (let [nss '[dingsbums.ops-test dingsbums.sessions-test]]
+                (apply require nss)
+                (let [{:keys [fail error]} (apply t/run-tests nss)]
+                  (System/exit (if (zero? (+ fail error)) 0 1))))}}}
