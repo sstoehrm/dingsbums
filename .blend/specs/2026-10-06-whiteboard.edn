@@ -1,0 +1,32 @@
+{:nodes {:landing {:name "landing screen" :type "view" :ns "dingsbums.views" :does "create / join by id"}
+         :board {:name "board canvas" :type "view" :ns "dingsbums.board" :does "defdraw: objects, handles, connections; pointer → events"}
+         :overlays {:name "DOM overlays" :type "view" :ns "dingsbums.views" :does "session bar, toolbar, selection toolbar, text editor"}
+         :geom {:name "geometry" :type "pure" :ns "dingsbums.geom" :does "hit-test, resize, camera, font fit"}
+         :model {:name "model / events" :type "pure" :ns "dingsbums.model + events" :does "objects, groups, locks, ops, undo/redo history" :md-ref "../../docs/superpowers/specs/2026-10-06-whiteboard-design.md"}
+         :app-db {:name "app-db" :type "state"}
+         :tube {:name "tubes client" :type "io" :ns "hammer.tubes"}
+         :http-client {:name "http client" :type "io" :ns "hammer.http" :does "create, exists, import"}
+         :server {:name "http server" :type "service" :ns "dingsbums.server" :does "static, REST, tar endpoints"}
+         :ws {:name "ws hub" :type "service" :ns "dingsbums.server" :does "apply ops, broadcast, snapshot"}
+         :sessions {:name "sessions atom" :type "state" :ns "dingsbums.sessions"}
+         :sweeper {:name "expiry sweeper" :type "service" :does "drop sessions empty > 15 min"}
+         :tar {:name "tar codec" :type "pure" :ns "dingsbums.tar" :does "ustar read/write"}}
+ :edges {[:landing :model] {:direction :-> :name "events"}
+         [:board :model] {:direction :-> :name "events"}
+         [:overlays :model] {:direction :-> :name "events"}
+         [:board :geom] {:direction :-> :name "uses"}
+         [:model :geom] {:direction :-> :name "uses"}
+         [:model :app-db] {:direction :-> :name "writes"}
+         [:app-db :board] {:direction :-> :name "path bindings"}
+         [:model :tube] {:direction :<-> :name "ops / snapshot" :type "ws"}
+         [:model :http-client] {:direction :-> :name "requests"}
+         [:tube :ws] {:direction :<-> :name "edn events" :type "ws"}
+         [:http-client :server] {:direction :-> :name "REST" :type "http"}
+         [:ws :sessions] {:direction :-> :name "swap!"}
+         [:server :sessions] {:direction :-> :name "create / read / replace"}
+         [:server :tar] {:direction :-> :name "uses"}
+         [:sweeper :sessions] {:direction :-> :name "dissoc expired"}}
+ :boxes {:frontend {:name "frontend (hammer SPA)" :type "browser" :md-ref "../../spec/frontend.md"
+                    :components #{:landing :board :overlays :geom :model :app-db :tube :http-client} :grid [0 0]}
+         :backend {:name "backend (babashka)" :type "service" :md-ref "../../spec/backend.md"
+                   :components #{:server :ws :sessions :sweeper :tar} :grid [1 0]}}}
