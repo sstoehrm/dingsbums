@@ -2,7 +2,9 @@
  :tasks
  {test {:doc "Run the backend tests"
         :requires ([clojure.test :as t])
-        :task (let [nss '[dingsbums.ops-test dingsbums.sessions-test dingsbums.tar-test]]
+        :task (let [nss '[dingsbums.ops-test dingsbums.sessions-test dingsbums.tar-test dingsbums.server-test]]
                 (apply require nss)
                 (let [{:keys [fail error]} (apply t/run-tests nss)]
-                  (System/exit (if (zero? (+ fail error)) 0 1))))}}}
+                  (System/exit (if (zero? (+ fail error)) 0 1))))}
+  server {:doc "Run the server: bb server [port] (default 8080)"
+          :task (apply (requiring-resolve 'dingsbums.server/-main) *command-line-args*)}}}
