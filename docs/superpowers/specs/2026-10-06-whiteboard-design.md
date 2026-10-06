@@ -28,6 +28,7 @@ restarts, auth/accounts, touch gestures beyond what pointer events give.
 | Path | What |
 |---|---|
 | `bb.edn` | tasks: `server`, `test`, `build`, `dev` |
+| `src/dingsbums/ops.cljc` | object ops shared by server and client: validation, upsert, delete with connection cascade |
 | `src/dingsbums/sessions.clj` | pure session ops + the `sessions` atom |
 | `src/dingsbums/tar.clj` | ustar write/read, export/import of a session |
 | `src/dingsbums/server.clj` | httpkit (built into bb): static files, REST, WebSocket, sweeper |
@@ -116,11 +117,18 @@ hammer.tubes protocol: one EDN event vector per text frame, read with
 `clojure.edn/read-string`.
 
 - **Open:** unknown session → send `[:session/missing]`, close. Otherwise add
-  the channel to `:clients`, set `:empty-since` nil, send
-  `[:session/snapshot objs]`.
+  the channel to `:clients` and set `:empty-since` nil.
+- **Receive** `[:session/hello]`: reply `[:session/snapshot objs]` (or
+  `[:session/missing]` if the session is gone). The client sends it from the
+  tube's `:on-connect`; hammer.tubes flushes queued ops *before* `:on-connect`,
+  so the snapshot already contains ops queued while offline.
 - **Receive** `[:op/upsert [obj ...]]` or `[:op/delete [id ...]]`: apply with
-  one `swap!`, forward the same frame to the session's other clients. Frames
-  over 20 MB, unreadable frames and events of any other shape are ignored.
+  one `swap!` (delete cascades to connections, `dingsbums.ops`), forward the
+  same frame to the session's other clients. Unreadable frames and events of
+  any other shape are ignored. Objects need a string `:id` of at most 64
+  characters and a keyword `:kind`.
+- **Frame limit:** http-kit `:max-ws` 20 MB; a larger frame makes http-kit
+  close the connection (1009), the client reconnects and resyncs.
 - **Close:** remove the channel; when it was the last, set `:empty-since` now.
 - **Sweeper:** a loop every 60 s runs `(expire sessions-map now-ms)`, which
   drops sessions with no clients whose `:empty-since` is more than 15 min ago.
@@ -212,7 +220,8 @@ Ignored while the textarea has focus.
 Window `paste` event, ignored while editing text:
 
 - an image file → `:image` with its data URL, natural size scaled down to fit
-  600×600, centered in the view;
+  600×600, centered in the view; a data URL over 15 MB is refused with
+  "Image too large (max 15 MB)" in the session bar;
 - otherwise plain text → `:text` object with that text, 300×100, centered.
 
 ### Sync
@@ -228,8 +237,12 @@ Window `paste` event, ignored while editing text:
   upserts go out at most every 33 ms and once more on pointer-up.
 - `[:session/missing]` destroys the tube and returns to landing with
   "Session expired or not found".
-- Tube `:on-disconnect` / `:on-connect` toggle the offline badge; queued ops go
-  out on reconnect (hammer.tubes) and the server's snapshot follows.
+- Tube `:on-connect` sets online and sends `[:session/hello]`;
+  `:on-disconnect` shows the offline badge. Queued ops go out on reconnect
+  (hammer.tubes), then the hello, then the server's snapshot arrives.
+- Only `:op/upsert`, `:op/delete`, `:session/snapshot` and `:session/missing`
+  from the server are dispatched (tube `:on-receive`); anything else is
+  dropped.
 
 ### Undo/redo
 
