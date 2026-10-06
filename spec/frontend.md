@@ -1,0 +1,27 @@
+# Frontend
+
+- Frontend is a single page application miro like but very simplified.
+- It has only two screens
+- When you first visit the page it show simply two buttons and an input field
+  - Create new session
+  - Join session with a input field for the session id
+- A open session shows a canvas
+  - top left there is the session id with a copy button, a export button (allowing to download the session as tar) and an import button for uploading a tar
+  - bottom left there is a toolbar
+    - the toolbar has the following tools available:
+      - text tool (a borderless text frame)
+      - frame tool (a frame with just a border, does not have text)
+      - shapes tool (different shapes: circle, rectangle, star, arrow). They all have a black border and can be filled with a color. Does not have text
+      - Sticky note (with a border and colored. A rectangle. Can have text)
+      - Connection tool (allows to connect two, objects, always a direct connection from center to center)
+  - Copy to the board
+    - Images can be copied onto the canvas
+    - Text can be copied and will be turned into a text tool
+  - Each tool has the following things
+    - If text is available then the available text and size of the object defines the font size
+    - A selected object show a toolbar above the object, e.g. changing the fill color
+    - Each tool can be resized
+    - Text can be editied if text is available with either double click or f2. Clicking out of the object accepts the change, ESC aborts it.
+    - there is grouping of objects
+    - there is ungrouping of objects
+    - there is locking of groups and objecs
