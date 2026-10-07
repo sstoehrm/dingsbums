@@ -49,18 +49,22 @@ minutes is gone, so export what you want to keep.
 
 ## Installation
 
-With [babashka](https://github.com/babashka/babashka#installation) and
-[bbin](https://github.com/babashka/bbin):
+Linux, with [babashka](https://github.com/babashka/babashka#installation)
+1.12 or newer and curl:
+
+    curl -fsSL https://raw.githubusercontent.com/sstoehrm/dingsbums/main/install.sh | bash
+
+It puts the latest release into `~/.dingsbums` and the `dingsbums` command
+into `~/.local/bin`. Or, with [bbin](https://github.com/babashka/bbin):
 
     bbin install https://github.com/sstoehrm/dingsbums/releases/latest/download/dingsbums.jar
 
-Then run it:
+Both write `~/.local/bin/dingsbums`, so use one or the other. Then:
 
     dingsbums           # http://localhost:8080
     dingsbums 9000      # another port
+    dingsbums update    # install the latest release
     dingsbums --version
-
-The same command updates it to the latest release.
 
 ## Development
 

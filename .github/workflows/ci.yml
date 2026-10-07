@@ -52,3 +52,9 @@ jobs:
 
       - name: Release jar runs the way bbin runs it
         run: bb jar:smoke
+
+      - name: install.sh installs the jar and its launcher runs
+        run: |
+          tmp=$(mktemp -d)
+          DINGSBUMS_HOME=$tmp/home DINGSBUMS_BIN=$tmp/bin DINGSBUMS_JAR=dist/dingsbums.jar bash install.sh
+          DINGSBUMS_HOME=$tmp/home $tmp/bin/dingsbums --version

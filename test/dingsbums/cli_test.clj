@@ -10,6 +10,7 @@
   (is (= {:version true} (cli/parse-args ["-v"])))
   (is (= {:help true} (cli/parse-args ["--help"])))
   (is (= {:help true} (cli/parse-args ["-h"])))
+  (is (= {:update true} (cli/parse-args ["update"])))
   (is (:error (cli/parse-args ["abc"])))
   (is (:error (cli/parse-args ["70000"])))
   (is (:error (cli/parse-args ["-1"])))
