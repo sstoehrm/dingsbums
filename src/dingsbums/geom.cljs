@@ -9,6 +9,11 @@
 (def max-zoom 4)
 (def handle-px 8)
 (def padding 8)
+
+(defn text-padding
+  "Space between an object's edge and its text: more on a sticky note."
+  [kind]
+  (if (= :sticky kind) 20 padding))
 (def line-height 1.2)
 
 (defn- abs* [n] (js/Math.abs n))
@@ -183,16 +188,17 @@
 
 (defn fit-text
   "{:size :lines}: the largest font size in 6..200 at which text, wrapped, fits
-  w×h minus padding (line height 1.2×size); size 6 when nothing fits."
-  [measure text w h]
-  (let [mw (- w (* 2 padding))
-        mh (- h (* 2 padding))
-        fits (fn [size] (let [lines (wrap measure text size mw)]
-                          (when (<= (* (count lines) size line-height) mh) lines)))]
-    (loop [lo 6 hi 200 best nil]
-      (if (> lo hi)
-        (or best {:size 6 :lines (wrap measure text 6 mw)})
-        (let [mid (quot (+ lo hi) 2)]
-          (if-let [lines (fits mid)]
-            (recur (inc mid) hi {:size mid :lines lines})
-            (recur lo (dec mid) best)))))))
+  w×h minus pad on every side (line height 1.2×size); size 6 when nothing fits."
+  ([measure text w h] (fit-text measure text w h padding))
+  ([measure text w h pad]
+   (let [mw (- w (* 2 pad))
+         mh (- h (* 2 pad))
+         fits (fn [size] (let [lines (wrap measure text size mw)]
+                           (when (<= (* (count lines) size line-height) mh) lines)))]
+     (loop [lo 6 hi 200 best nil]
+       (if (> lo hi)
+         (or best {:size 6 :lines (wrap measure text 6 mw)})
+         (let [mid (quot (+ lo hi) 2)]
+           (if-let [lines (fits mid)]
+             (recur (inc mid) hi {:size mid :lines lines})
+             (recur lo (dec mid) best))))))))

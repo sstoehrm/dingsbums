@@ -26,11 +26,11 @@
 (defonce ^:private fit-cache (js/Map.))
 
 (defn fit
-  "geom/fit-text with the canvas measure, cached by box size and text."
-  [text w h]
-  (let [k (str w "|" h "|" text)]
+  "geom/fit-text with the canvas measure, cached by box size, padding and text."
+  [text w h pad]
+  (let [k (str w "|" h "|" pad "|" text)]
     (or (.get fit-cache k)
-        (let [r (geom/fit-text measure text w h)]
+        (let [r (geom/fit-text measure text w h pad)]
           (when (> (.-size fit-cache) 5000) (.clear fit-cache))
           (.set fit-cache k r)
           r))))
@@ -58,9 +58,10 @@
                        (.closePath ctx))
       (.rect ctx x y w h))))
 
-(defn- text! [^js ctx {:keys [x y w h text]} color]
+(defn- text! [^js ctx {:keys [x y w h text kind]} color]
   (when (seq text)
-    (let [{:keys [size lines]} (fit text w h)]
+    (let [pad (geom/text-padding kind)
+          {:keys [size lines]} (fit text w h pad)]
       (.save ctx)
       (.beginPath ctx)
       (.rect ctx x y w h)
@@ -69,7 +70,7 @@
       (set! (.-textBaseline ctx) "top")
       (set! (.-fillStyle ctx) color)
       (doseq [[i line] (map-indexed vector lines)]
-        (.fillText ctx line (+ x geom/padding) (+ y geom/padding (* i size geom/line-height))))
+        (.fillText ctx line (+ x pad) (+ y pad (* i size geom/line-height))))
       (.restore ctx))))
 
 (defn- arrowhead! [^js ctx [ax ay] [bx by] size]

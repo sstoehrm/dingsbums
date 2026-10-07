@@ -99,10 +99,11 @@
                       draft (or (:draft editing) "")
                       zoom (:zoom cam)
                       pos (geom/world->screen cam [(:x o) (:y o)])
-                      size (:size (board/fit draft (:w o) (:h o)))
+                      pad (geom/text-padding (:kind o))
+                      size (:size (board/fit draft (:w o) (:h o) pad))
                       style {:left (str (first pos) "px") :top (str (second pos) "px")
                              :width (str (* zoom (:w o)) "px") :height (str (* zoom (:h o)) "px")
-                             :font-family board/font-family :font-size (str (* zoom size) "px") :padding (str (* zoom geom/padding) "px")
+                             :font-family board/font-family :font-size (str (* zoom size) "px") :padding (str (* zoom pad) "px")
                              :color (if (= :sticky (:kind o)) (model/ink (:fill o)) "var(--text-strong)")}]
   [:textarea.text-editor {:style style :value draft :ref focus!
                           :on-input (fn [^js e] (dispatch [:edit/input (.. e -target -value)]))
