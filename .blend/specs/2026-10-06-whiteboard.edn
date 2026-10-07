@@ -26,7 +26,7 @@
          [:server :sessions] {:direction :-> :name "create / read / replace"}
          [:server :tar] {:direction :-> :name "uses"}
          [:sweeper :sessions] {:direction :-> :name "dissoc expired"}}
- :boxes {:frontend {:name "frontend (hammer SPA)" :type "browser" :md-ref "../../spec/frontend.md"
+ :boxes {:frontend {:name "frontend (hammer SPA)" :type "browser"
                     :components #{:landing :board :overlays :geom :model :app-db :tube :http-client} :grid [0 0]}
-         :backend {:name "backend (babashka)" :type "service" :md-ref "../../spec/backend.md"
+         :backend {:name "backend (babashka)" :type "service"
                    :components #{:server :ws :sessions :sweeper :tar} :grid [1 0]}}}

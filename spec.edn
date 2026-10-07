@@ -1,4 +1,0 @@
-{:nodes {:frontend {:name "frontend" :type "browser" :techstack "sstoehrm/hammer" :md-ref "spec/frontend.md"}
-         :backend {:name "backend" :type "service" :techstack "babashka" :md-ref "spec/backend.md"}}
- :edges {[:frontend :backend] {:direction :-> :name "api" :type "http / ws"}}
- :boxes {}}
