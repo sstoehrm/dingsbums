@@ -1,6 +1,8 @@
+<img src="public/icons/dingsbums.svg" alt="dingsbums" width="128">
+
 # dingsbums
 
-A simple collaboration whiteboard: open a session, share its link, and draw
+A digital collaboration whiteboard: open a session, share its link, and draw
 together in real time.
 
 ## Why the name
@@ -10,15 +12,16 @@ can't think of right now. That's what a whiteboard is full of.
 
 ## What it is
 
-A very simplified Miro. No accounts, no setup: create a session and send
-the link (`/#<session-id>`) to whoever should join. Everyone on it edits the
-same board live.
+No accounts, no setup: create a session and send the link
+(`/#<session-id>`) to whoever should join. Everyone on it edits the same
+board live.
 
 - Frames, sticky notes, text, shapes (circle, rectangle, star, arrow) and
   connections between them
 - Fill colours, groups, locking, undo/redo
 - Paste images and text straight onto the board
-- An infinite canvas: scroll to pan (shift + wheel sideways), ctrl + wheel to zoom
+- An infinite canvas: scroll to pan (shift + wheel sideways), ctrl + wheel
+  or the + and − buttons to zoom
 - Export a board as a `.tar` and import it again
 - Twelve colour themes, or follow the OS light/dark setting
 
@@ -30,7 +33,7 @@ minutes is gone, so export what you want to keep.
 ## Installation
 
 Needs [babashka](https://github.com/babashka/babashka#installation),
-Node.js with npm, and a JDK 21 or newer (for the frontend build).
+Node.js with npm, and a JDK 25 or newer (for the frontend build).
 
     git clone https://github.com/sstoehrm/dingsbums.git
     cd dingsbums
