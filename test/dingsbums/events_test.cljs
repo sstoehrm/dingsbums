@@ -158,7 +158,10 @@
   (is (= :pan (get-in (ev/pointer-down (assoc board :space? true) (pe 0 0)) [:db :drag :type])) "space+drag pans")
   (is (nil? (ev/pointer-down board (pe 0 0 :button 2))) "right button ignored")
   (is (= {:x 10 :y 20 :zoom 1} (get-in (ev/camera-pan board 10 20) [:db :camera])) "wheel scrolls")
-  (is (= 2 (get-in (ev/camera-zoom board 2 0 0) [:db :camera :zoom]))))
+  (is (= 2 (get-in (ev/camera-zoom board 2 0 0) [:db :camera :zoom])))
+  (let [cam (get-in (ev/zoom-step board 2) [:db :camera])]
+    (is (= 2 (:zoom cam)) "+ and - zoom")
+    (is (= [256 192] [(:x cam) (:y cam)]) "around the middle of the viewport")))
 
 (deftest text-editing
   (let [fx (ev/dblclick with-objs (pe 10 10))

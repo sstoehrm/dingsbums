@@ -8,7 +8,11 @@
             [dingsbums.model :as model]
             [dingsbums.themes :as themes]))
 
-(def ^:private font "px sans-serif")
+(def font-family
+  "The board's text font, also the text editor's. System monospace fonts only:
+  they are there before the first measure, so fit-cache never goes stale."
+  "ui-monospace, \"Cascadia Code\", \"JetBrains Mono\", \"SF Mono\", Menlo, Consolas, \"DejaVu Sans Mono\", monospace")
+(def ^:private font (str "px " font-family))
 (def ^:private frame-radius 8)
 (def ^:private sticky-radius 4)
 

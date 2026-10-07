@@ -23,7 +23,7 @@
   .error { color: #c62828; min-height: 1.2em; margin: 0; }
   .app { position: fixed; inset: 0; overflow: hidden; background: var(--bg); }
   .board { touch-action: none; }
-  .session-bar, .toolbar, .sel-toolbar { position: absolute; display: flex; gap: 6px; align-items: center;
+  .session-bar, .toolbar, .zoom-bar, .sel-toolbar { position: absolute; display: flex; gap: 6px; align-items: center;
     background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 6px;
     box-shadow: 0 1px 4px var(--shadow); }
   .session-bar { top: 12px; left: 12px; }
@@ -33,11 +33,14 @@
   .toolbar { left: 12px; bottom: 12px; flex-direction: column; align-items: stretch; }
   .toolbar .tools, .toolbar .shapes { display: flex; gap: 4px; }
   .toolbar button { min-width: 36px; }
+  .zoom-bar { right: 12px; bottom: 12px; }
+  .zoom-bar button { min-width: 36px; }
+  .zoom { font-size: 13px; min-width: 4ch; text-align: center; font-variant-numeric: tabular-nums; }
   .sep { width: 1px; background: var(--panel-divider); margin: 0 4px; }
   .sel-toolbar { z-index: 2; }
   .swatch { width: 22px; height: 22px; padding: 0; border-radius: 50%; }
   .text-editor { position: absolute; z-index: 3; margin: 0; border: none; outline: 2px solid var(--accent);
-    background: transparent; resize: none; overflow: hidden; font-family: sans-serif; line-height: 1.2; }
+    background: transparent; resize: none; overflow: hidden; line-height: 1.2; }
 </style>
 </head>
 <body>

@@ -144,6 +144,10 @@
 
 (defn camera-pan [db dx dy] {:db (update db :camera geom/pan (- dx) (- dy))})
 (defn camera-zoom [db factor sx sy] {:db (update db :camera geom/zoom-at factor [sx sy])})
+(defn zoom-step
+  "Zoom by factor around the middle of the viewport (the + and - buttons)."
+  [db factor]
+  (let [[w h] (:viewport db)] (camera-zoom db factor (/ w 2) (/ h 2))))
 (defn set-viewport [db w h] {:db (assoc db :viewport [w h])})
 (defn set-space [db down?] {:db (assoc db :space? down?)})
 (defn image-loaded [db] {:db (update db :img-tick inc)})
@@ -366,6 +370,7 @@
                 :tool/shape select-shape
                 :camera/pan camera-pan
                 :camera/zoom camera-zoom
+                :camera/zoom-step zoom-step
                 :viewport set-viewport
                 :space set-space
                 :image/loaded image-loaded

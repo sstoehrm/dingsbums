@@ -59,6 +59,12 @@
     [:button {:title "Undo (Ctrl+Z)" :on-click [:history/undo]} "↶"]
     [:button {:title "Redo (Ctrl+Shift+Z)" :on-click [:history/redo]} "↷"]]])
 
+(defc zoom-bar [] [zoom [:camera :zoom]]
+  [:div.zoom-bar
+   [:button {:title "Zoom out" :on-click [:camera/zoom-step 0.8]} "−"]
+   [:span.zoom (str (js/Math.round (* 100 zoom)) "%")]
+   [:button {:title "Zoom in" :on-click [:camera/zoom-step 1.25]} "+"]])
+
 (defc selection-toolbar [] [sel [:selection] objects [:objects] cam [:camera] drag [:drag] editing [:editing]
                             os (vec (keep #(get objects %) sel))
                             b (geom/bounds (keep #(geom/obj-rect objects %) os))
@@ -96,7 +102,7 @@
                       size (:size (board/fit draft (:w o) (:h o)))
                       style {:left (str (first pos) "px") :top (str (second pos) "px")
                              :width (str (* zoom (:w o)) "px") :height (str (* zoom (:h o)) "px")
-                             :font-size (str (* zoom size) "px") :padding (str (* zoom geom/padding) "px")
+                             :font-family board/font-family :font-size (str (* zoom size) "px") :padding (str (* zoom geom/padding) "px")
                              :color (if (= :sticky (:kind o)) (model/ink (:fill o)) "var(--text-strong)")}]
   [:textarea.text-editor {:style style :value draft :ref focus!
                           :on-input (fn [^js e] (dispatch [:edit/input (.. e -target -value)]))
@@ -108,6 +114,7 @@
      [board/board]
      [session-bar]
      [toolbar]
+     [zoom-bar]
      [selection-toolbar]
      (when editing-id [text-editor])]
     [landing]))
