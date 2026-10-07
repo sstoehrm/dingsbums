@@ -9,6 +9,14 @@
 (def objs {"a" a "b" b "ab" ab})
 (def db {:objects objs :history {:undo [] :redo []}})
 
+(deftest ink-contrasts-with-the-fill
+  (is (= "#222" (m/ink "#fff176")))
+  (is (= "#222" (m/ink "#ffffff")))
+  (is (= "#fff" (m/ink "#000000")))
+  (is (= "#222" (m/ink "#ba68c8")))
+  (is (= "#fff" (m/ink "#1f2937")))
+  (is (= "#222" (m/ink nil)) "default sticky fill"))
+
 (deftest make-assigns-id-z-and-kind-defaults
   (let [o (m/make objs :sticky {:x 1 :y 2 :w 3 :h 4} nil)]
     (is (string? (:id o)))

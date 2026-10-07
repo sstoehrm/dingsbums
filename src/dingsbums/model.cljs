@@ -8,6 +8,13 @@
 (def default-size {:text [200 50] :frame [400 300] :shape [120 120] :sticky [200 200]})
 (def sticky-fill "#fff176")
 (def swatches [nil "#fff176" "#ffb74d" "#e57373" "#81c784" "#64b5f6" "#ba68c8" "#ffffff" "#000000"])
+(defn ink
+  "Text color for a sticky with this #rrggbb fill: dark, or white on dark fills."
+  [fill]
+  (let [c (js/parseInt (subs (or fill sticky-fill) 1) 16)
+        brightness (/ (+ (* 299 (bit-shift-right c 16)) (* 587 (bit-and (bit-shift-right c 8) 255)) (* 114 (bit-and c 255)))
+                      1000)]
+    (if (< brightness 128) "#fff" "#222")))
 (def history-cap 100)
 (def text-kinds #{:text :sticky})
 

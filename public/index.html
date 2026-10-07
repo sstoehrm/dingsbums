@@ -5,32 +5,38 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>dingsbums</title>
 <style>
+  /* the light theme; dingsbums.themes repaints these */
+  :root { --bg: #fafafa; --panel: #fff; --panel-border: #ddd; --panel-divider: #eee; --text: #374151;
+          --text-strong: #000; --text-muted: #6b7280; --accent: #2563eb; --on-accent: #fff;
+          --shadow: rgba(0, 0, 0, .06); }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
-  html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; background: #f5f5f4; color: #222; }
-  button, .button { font: inherit; font-size: 14px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 6px;
-                    background: #fff; cursor: pointer; color: inherit; text-decoration: none; line-height: 1.2; }
-  button.active { background: #1e88e5; border-color: #1e88e5; color: #fff; }
+  html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  button, .button, select { font: inherit; font-size: 14px; padding: 6px 10px; border: 1px solid var(--panel-border);
+                    border-radius: 6px; background: var(--panel); cursor: pointer; color: inherit; text-decoration: none; line-height: 1.2; }
+  button.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
   .landing { max-width: 360px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; padding: 18vh 16px 0; }
   .landing h1 { margin: 0 0 8px; }
   .landing .join { display: flex; gap: 8px; }
-  .landing input { flex: 1; min-width: 0; font: inherit; padding: 6px 10px; border: 1px solid #ccc; border-radius: 6px; }
+  .landing input { flex: 1; min-width: 0; font: inherit; padding: 6px 10px; border: 1px solid var(--panel-border);
+                   border-radius: 6px; background: var(--panel); color: inherit; }
   .error { color: #c62828; min-height: 1.2em; margin: 0; }
-  .app { position: fixed; inset: 0; overflow: hidden; background: #fafafa; }
+  .app { position: fixed; inset: 0; overflow: hidden; background: var(--bg); }
   .board { touch-action: none; }
   .session-bar, .toolbar, .sel-toolbar { position: absolute; display: flex; gap: 6px; align-items: center;
-    background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 6px;
+    box-shadow: 0 1px 4px var(--shadow); }
   .session-bar { top: 12px; left: 12px; }
   .session-bar .sid { font-size: 13px; padding: 0 4px; user-select: all; }
   .badge { background: #c62828; color: #fff; border-radius: 4px; padding: 2px 6px; font-size: 12px; }
-  .msg { font-size: 13px; color: #555; }
+  .msg { font-size: 13px; color: var(--text-muted); }
   .toolbar { left: 12px; bottom: 12px; flex-direction: column; align-items: stretch; }
   .toolbar .tools, .toolbar .shapes { display: flex; gap: 4px; }
   .toolbar button { min-width: 36px; }
-  .sep { width: 1px; background: #ddd; margin: 0 4px; }
+  .sep { width: 1px; background: var(--panel-divider); margin: 0 4px; }
   .sel-toolbar { z-index: 2; }
   .swatch { width: 22px; height: 22px; padding: 0; border-radius: 50%; }
-  .text-editor { position: absolute; z-index: 3; margin: 0; border: none; outline: 2px solid #1e88e5;
+  .text-editor { position: absolute; z-index: 3; margin: 0; border: none; outline: 2px solid var(--accent);
     background: transparent; resize: none; overflow: hidden; font-family: sans-serif; line-height: 1.2; }
 </style>
 </head>

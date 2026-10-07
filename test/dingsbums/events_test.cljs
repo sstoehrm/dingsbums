@@ -5,7 +5,8 @@
             [hammer.state :as state]
             [hammer.testing :as t]
             [hammer.tubes :as tubes]
-            [dingsbums.events :as ev]))
+            [dingsbums.events :as ev]
+            [dingsbums.themes :as themes]))
 
 (def board (assoc ev/initial-db :route :board :session "s1"))
 (def sticky {:id "a" :kind :sticky :x 0 :y 0 :w 100 :h 100 :z 1 :fill "#fff176" :text "hi"})
@@ -36,6 +37,23 @@
   (is (= [:space true] (ev/key-action {:key " "})))
   (is (nil? (ev/key-action {:key "c" :ctrl? true})) "browser copy untouched")
   (is (nil? (ev/key-action {:key "a"}))))
+
+(deftest wheel-actions
+  (is (= [:camera/pan 3 40] (ev/wheel-action {:dx 3 :dy 40})))
+  (is (= [:camera/pan 40 0] (ev/wheel-action {:dx 0 :dy 40 :shift? true})) "shift scrolls sideways")
+  (is (= [:camera/pan 40 0] (ev/wheel-action {:dx 40 :dy 0 :shift? true})) "browsers that already swap the axes")
+  (is (= [:camera/zoom (js/Math.exp -0.4) 5 6] (ev/wheel-action {:dy 40 :ctrl? true :sx 5 :sy 6}))))
+
+(deftest theme
+  (let [fx (ev/theme-select board :nord)]
+    (is (= :nord (get-in fx [:db :theme])))
+    (is (= [:nord (:nord themes/themes)] (:theme/apply fx))))
+  (is (= [nil (:light themes/themes)] (:theme/apply (ev/theme-select board nil))) "default follows the OS")
+  (is (= [nil (:dark themes/themes)] (:theme/apply (ev/theme-os board true))))
+  (let [fx (ev/theme-os (assoc board :theme :paper) true)]
+    (is (true? (get-in fx [:db :os-dark?])))
+    (is (= [:paper (:paper themes/themes)] (:theme/apply fx)) "a picked theme wins over the OS"))
+  (is (= [nil (:light themes/themes)] (:theme/apply (ev/theme-select board :nope))) "unknown names are dropped"))
 
 (deftest routing
   (let [fx (ev/route-changed with-objs "")]

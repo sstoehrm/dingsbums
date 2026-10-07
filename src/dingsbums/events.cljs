@@ -8,13 +8,14 @@
             [hammer.tubes :as tubes]
             [dingsbums.geom :as geom]
             [dingsbums.model :as model]
-            [dingsbums.ops :as ops]))
+            [dingsbums.ops :as ops]
+            [dingsbums.themes :as themes]))
 
 (def initial-db
   {:route :landing :session nil :join-input "" :error nil :message nil :online? false
    :objects {} :history {:undo [] :redo []} :selection #{} :tool :select :shape-kind :rect
    :camera {:x 0 :y 0 :zoom 1} :drag nil :editing nil :space? false :img-tick 0
-   :viewport [1024 768]})
+   :viewport [1024 768] :theme nil :os-dark? false})
 
 (def ^:private board-reset
   (select-keys initial-db [:objects :history :selection :tool :camera :drag :editing :message :online?]))
@@ -28,6 +29,17 @@
 (reg-fx :tube/send (fn [evs] (run! tubes/send! evs)))
 (reg-fx :set-hash (fn [h] (set! (.-hash js/location) h)))
 (reg-fx :clipboard/write (fn [s] (some-> js/navigator .-clipboard (.writeText s) (.catch (fn [_] nil)))))
+
+(def theme-storage-key "dingsbums-theme")
+
+(reg-fx :theme/apply
+        (fn [[pref theme]]
+          (try (if pref
+                 (js/localStorage.setItem theme-storage-key (name pref))
+                 (js/localStorage.removeItem theme-storage-key))
+               (catch :default _ nil))
+          (let [style (.. js/document -documentElement -style)]
+            (doseq [k themes/css-keys] (.setProperty style (str "--" (name k)) (get theme k))))))
 
 (defn- with-ops [db ops] (cond-> {:db db} (seq ops) (assoc :tube/send ops)))
 
@@ -95,6 +107,14 @@
   (let [sid (str/trim (:join-input db))]
     (when-not (str/blank? sid) {:db (assoc db :error nil) :set-hash sid})))
 
+(defn theme-select
+  "pref: a theme name, or nil to follow the OS. Saved in this browser."
+  [db pref]
+  (let [pref (when (contains? themes/themes pref) pref)]
+    {:db (assoc db :theme pref) :theme/apply [pref (themes/effective pref (:os-dark? db))]}))
+
+(defn theme-os [db dark?] (theme-select (assoc db :os-dark? dark?) (:theme db)))
+
 (defn copy-id [db] {:db (assoc db :message "Copied") :clipboard/write (:session db)})
 
 ;; sync
@@ -113,6 +133,15 @@
 
 (defn select-tool [db tool] {:db (assoc db :tool tool)})
 (defn select-shape [db shape] {:db (assoc db :tool :shape :shape-kind shape)})
+(defn wheel-action
+  "The event for a wheel turn: ctrl zooms at the pointer, shift scrolls sideways
+  (some browsers already swap the axes for shift, so both deltas count)."
+  [{:keys [dx dy ctrl? shift? sx sy]}]
+  (cond
+    ctrl? [:camera/zoom (js/Math.exp (* -0.01 dy)) sx sy]
+    shift? [:camera/pan (+ dx dy) 0]
+    :else [:camera/pan dx dy]))
+
 (defn camera-pan [db dx dy] {:db (update db :camera geom/pan (- dx) (- dy))})
 (defn camera-zoom [db factor sx sy] {:db (update db :camera geom/zoom-at factor [sx sy])})
 (defn set-viewport [db w h] {:db (assoc db :viewport [w h])})
@@ -321,6 +350,8 @@
                 :session/missing session-missing
                 :session/created session-created
                 :session/copy-id copy-id
+                :theme/select theme-select
+                :theme/os theme-os
                 :session/snapshot snapshot
                 :op/upsert remote-upsert
                 :op/patch remote-patch

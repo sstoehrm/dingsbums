@@ -3,7 +3,8 @@
   (:require [hammer.core :refer [defc dispatch]]
             [dingsbums.board :as board]
             [dingsbums.geom :as geom]
-            [dingsbums.model :as model]))
+            [dingsbums.model :as model]
+            [dingsbums.themes :as themes]))
 
 (defc landing [] [input [:join-input] err [:error]]
   [:main.landing
@@ -21,7 +22,12 @@
     (set! (.-value input) "")
     (when f (dispatch [:import/file f]))))
 
-(defc session-bar [] [sid [:session] online? [:online?] msg [:message]
+(defn- theme-change [^js e]
+  (let [v (.. e -target -value)]
+    (.blur (.-target e))
+    (dispatch [:theme/select (when (seq v) (keyword v))])))
+
+(defc session-bar [] [sid [:session] online? [:online?] msg [:message] theme [:theme]
                       export-url (str "/api/sessions/" sid "/export")]
   [:div.session-bar
    [:code.sid sid]
@@ -29,6 +35,9 @@
    [:a.button {:href export-url :download ""} "Export"]
    [:label.button "Import"
     [:input {:type "file" :accept ".tar" :hidden true :on-change import-change}]]
+   [:select {:title "Theme (saved in this browser)" :value (if theme (name theme) "") :on-change theme-change}
+    [:option {:value ""} "default (follow the OS)"]
+    (for [n themes/names] ^{:key n} [:option {:value (name n)} (name n)])]
    [:span.badge {:hidden (boolean online?)} "offline"]
    [:span.msg msg]])
 
@@ -87,7 +96,8 @@
                       size (:size (board/fit draft (:w o) (:h o)))
                       style {:left (str (first pos) "px") :top (str (second pos) "px")
                              :width (str (* zoom (:w o)) "px") :height (str (* zoom (:h o)) "px")
-                             :font-size (str (* zoom size) "px") :padding (str (* zoom geom/padding) "px")}]
+                             :font-size (str (* zoom size) "px") :padding (str (* zoom geom/padding) "px")
+                             :color (if (= :sticky (:kind o)) (model/ink (:fill o)) "var(--text-strong)")}]
   [:textarea.text-editor {:style style :value draft :ref focus!
                           :on-input (fn [^js e] (dispatch [:edit/input (.. e -target -value)]))
                           :on-blur [:edit/commit] :on-keydown edit-keydown}])

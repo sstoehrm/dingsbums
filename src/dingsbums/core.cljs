@@ -3,6 +3,7 @@
   (:require [clojure.string :as str]
             [hammer.core :refer [mount! dispatch]]
             [dingsbums.events :as events]
+            [dingsbums.themes :as themes]
             [dingsbums.views :as views]))
 
 (defn- root [] (js/document.getElementById "app"))
@@ -11,7 +12,7 @@
   (let [h (subs (.-hash js/location) 1)]
     (try (js/decodeURIComponent h) (catch :default _ h))))
 
-(defn- typing? [^js e] (contains? #{"INPUT" "TEXTAREA"} (.. e -target -tagName)))
+(defn- typing? [^js e] (contains? #{"INPUT" "TEXTAREA" "SELECT"} (.. e -target -tagName)))
 
 (defn- on-keydown [^js e]
   (when-not (typing? e)
@@ -44,10 +45,18 @@
         file (do (.preventDefault e) (paste-image! file))
         (not (str/blank? text)) (do (.preventDefault e) (dispatch [:paste/text text]))))))
 
+(defn- stored-theme []
+  (try (let [v (js/localStorage.getItem events/theme-storage-key)]
+         (some #(when (= v (name %)) %) themes/names))
+       (catch :default _ nil)))
+
 (defn- on-resize [] (dispatch [:viewport (.-innerWidth js/window) (.-innerHeight js/window)]))
 
 (defn init []
-  (mount! [views/app] (root) events/initial-db)
+  (mount! [views/app] (root) (assoc events/initial-db :theme (stored-theme)))
+  (let [dark (js/window.matchMedia "(prefers-color-scheme: dark)")]
+    (.addEventListener dark "change" #(dispatch [:theme/os (.-matches %)]))
+    (dispatch [:theme/os (.-matches dark)]))
   (.addEventListener js/window "hashchange" #(dispatch [:route/changed (hash-id)]))
   (.addEventListener js/window "keydown" on-keydown)
   (.addEventListener js/window "keyup" on-keyup)
