@@ -186,19 +186,30 @@
                      (conj out (or line "")))))
                (str/split-lines text))))
 
+(defn- largest
+  "The {:size :lines} of the largest size in 6..200 for which (fits size)
+  returns lines, or nil."
+  [fits]
+  (loop [lo 6 hi 200 best nil]
+    (if (> lo hi)
+      best
+      (let [mid (quot (+ lo hi) 2)]
+        (if-let [lines (fits mid)]
+          (recur (inc mid) hi {:size mid :lines lines})
+          (recur lo (dec mid) best))))))
+
 (defn fit-text
   "{:size :lines}: the largest font size in 6..200 at which text, wrapped, fits
-  w×h minus pad on every side (line height 1.2×size); size 6 when nothing fits."
+  w×h minus pad on every side (line height 1.2×size). Words break only when one
+  is too wide at every size; size 6 when nothing fits."
   ([measure text w h] (fit-text measure text w h padding))
   ([measure text w h pad]
    (let [mw (- w (* 2 pad))
          mh (- h (* 2 pad))
+         words (str/split text #"\s+")
          fits (fn [size] (let [lines (wrap measure text size mw)]
-                           (when (<= (* (count lines) size line-height) mh) lines)))]
-     (loop [lo 6 hi 200 best nil]
-       (if (> lo hi)
-         (or best {:size 6 :lines (wrap measure text 6 mw)})
-         (let [mid (quot (+ lo hi) 2)]
-           (if-let [lines (fits mid)]
-             (recur (inc mid) hi {:size mid :lines lines})
-             (recur lo (dec mid) best))))))))
+                           (when (<= (* (count lines) size line-height) mh) lines)))
+         whole (fn [size] (when (every? #(<= (measure % size) mw) words) (fits size)))]
+     (or (largest whole)
+         (largest fits)
+         {:size 6 :lines (wrap measure text 6 mw)}))))

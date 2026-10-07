@@ -65,5 +65,7 @@
   (is (= 6 (:size (g/fit-text measure (apply str (repeat 500 "x ")) 40 40))) "never below 6")
   (is (= {:size 40 :lines ["hello" "world"]} (g/fit-text measure "hello world" 140 140 20)) "wider padding")
   (is (= [20 8] [(g/text-padding :sticky) (g/text-padding :text)]) "stickies get more room")
+  (is (= {:size 40 :lines ["Ideas"]} (g/fit-text measure "Ideas" 116 116)) "shrinks rather than break a word")
+  (is (< 1 (count (:lines (g/fit-text measure (apply str (repeat 100 "x")) 116 116)))) "breaks a word too long for any size")
   (is (= ["a" "" "b"] (g/wrap measure "a\n\nb" 10 1000)) "newlines kept")
   (is (= ["abcdef" "ghij"] (g/wrap measure "abcdefghij" 10 30)) "long words break by character"))
