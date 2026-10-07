@@ -3,3 +3,4 @@ public/js/
 target/
 .shadow-cljs/
 .cpcache/
+dist/

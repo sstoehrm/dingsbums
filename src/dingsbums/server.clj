@@ -1,6 +1,6 @@
 (ns dingsbums.server
   "HTTP + WebSocket server: static files from public/, the session API and the
-  op hub. Run with `bb server [port]`."
+  op hub. Run with `bb server [port]`, or `dingsbums [port]` when installed."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]
@@ -19,13 +19,22 @@
    "css" "text/css; charset=utf-8" "map" "application/json" "json" "application/json"
    "svg" "image/svg+xml" "png" "image/png" "ico" "image/x-icon"})
 
+(defn- asset
+  "The file or resource for public path p (no leading slash): public/ on the
+  classpath (the release jar), else on disk (a checkout). nil for a path
+  with a .. segment or a type outside content-types (which rules out folders)."
+  [p]
+  (when (and (not-any? #{".."} (str/split p #"/"))
+             (contains? content-types (last (str/split p #"\."))))
+    (or (io/resource (str "public/" p))
+        (let [f (io/file "public" p)] (when (.isFile f) f)))))
+
 (defn- static [uri]
-  (let [root (.getCanonicalFile (io/file "public"))
-        f (.getCanonicalFile (io/file root (str/replace-first (if (= uri "/") "/index.html" uri) #"^/+" "")))]
-    (if (and (str/starts-with? (.getPath f) (str (.getPath root) java.io.File/separator)) (.isFile f))
+  (let [p (str/replace-first (if (= uri "/") "/index.html" uri) #"^/+" "")]
+    (if-let [a (asset p)]
       {:status 200
-       :headers {"Content-Type" (get content-types (last (str/split (.getName f) #"\.")) "application/octet-stream")}
-       :body f}
+       :headers {"Content-Type" (get content-types (last (str/split p #"\.")))}
+       :body (if (instance? java.io.File a) a (io/input-stream a))}
       {:status 404 :body "not found"})))
 
 (defn- send-to!
@@ -111,8 +120,10 @@
 (defn start! [port]
   (http/run-server #'handler {:port port :max-ws max-frame :max-body max-body :legacy-return-value? false}))
 
-(defn -main [& args]
-  (let [srv (start! (parse-long (or (first args) "8080")))]
+(defn serve!
+  "Runs the server on port (0: any free port) until the process ends."
+  [port]
+  (let [srv (start! port)]
     (future (loop []
               (Thread/sleep 60000)
               (try (sweep!) (catch Exception e (println "sweep failed:" (ex-message e))))

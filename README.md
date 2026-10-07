@@ -14,6 +14,8 @@
   &nbsp;·&nbsp;
   <a href="#installation">Installation</a>
   &nbsp;·&nbsp;
+  <a href="#development">Development</a>
+  &nbsp;·&nbsp;
   <a href="docs/superpowers/specs/2026-10-06-whiteboard-design.md">Design</a>
   &nbsp;·&nbsp;
   <a href="#tools-used">Tools used</a>
@@ -47,8 +49,23 @@ minutes is gone, so export what you want to keep.
 
 ## Installation
 
-Needs [babashka](https://github.com/babashka/babashka#installation), Node.js
-with npm, and a JDK 25 or newer (for the frontend build).
+With [babashka](https://github.com/babashka/babashka#installation) and
+[bbin](https://github.com/babashka/bbin):
+
+    bbin install https://github.com/sstoehrm/dingsbums/releases/latest/download/dingsbums.jar
+
+Then run it:
+
+    dingsbums           # http://localhost:8080
+    dingsbums 9000      # another port
+    dingsbums --version
+
+The same command updates it to the latest release.
+
+## Development
+
+Needs babashka, Node.js with npm, and a JDK 25 or newer (for the frontend
+build).
 
     git clone https://github.com/sstoehrm/dingsbums.git
     cd dingsbums
@@ -56,17 +73,22 @@ with npm, and a JDK 25 or newer (for the frontend build).
     bb build          # frontend release build into public/js
     bb server         # http://localhost:8080 (bb server <port> for another)
 
-Development: `bb server` plus `npx shadow-cljs watch app` (hot reload; bb
-serves public/).
+With hot reload: `bb server` plus `npx shadow-cljs watch app` (bb serves
+public/).
 
 Tests:
 
     bb test           # backend
     npm test          # frontend
+    bb jar:smoke      # builds the release jar and runs it the way bbin does
+
+Releasing: `bb release vX.Y.Z` on a clean main that matches origin tags and
+pushes; the tag's workflow tests, builds `dingsbums.jar` and publishes the
+GitHub release.
 
 ## License
 
-MIT, see [LICENSE](LICENSE). Third-party palettes:
+MIT, see [LICENSE](LICENSE). Third-party components and palettes:
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ## Tools used

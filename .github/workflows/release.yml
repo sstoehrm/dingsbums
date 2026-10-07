@@ -1,9 +1,11 @@
-name: CI
+name: Release
 
 on:
   push:
-    branches: [main]
-  pull_request:
+    tags: ['v*']
+
+permissions:
+  contents: write
 
 env:
   # the README's minimum
@@ -13,7 +15,7 @@ env:
   BB_VERSION: 1.13.225
 
 jobs:
-  test:
+  release:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -50,5 +52,14 @@ jobs:
       - name: Frontend tests
         run: npm test
 
-      - name: Release jar runs the way bbin runs it
-        run: bb jar:smoke
+      - name: Build and smoke-test the jar
+        run: bb jar:smoke ${{ github.ref_name }}
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "${{ github.ref_name }}"
+          dist/dingsbums.jar
+          --title "dingsbums ${{ github.ref_name }}"
+          --generate-notes

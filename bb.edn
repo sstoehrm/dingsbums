@@ -1,12 +1,126 @@
 {:paths ["src" "test"]
  :tasks
- {test {:doc "Run the backend tests"
+ {:init (defn release-version
+          "The version a release artifact carries: the task's first argument,
+          else `git describe`, else \"dev\"."
+          []
+          (or (first *command-line-args*)
+              (some-> (shell {:out :string :continue true} "git describe --tags --always")
+                      :out clojure.string/trim not-empty)
+              "dev"))
+
+  test {:doc "Run the backend tests"
         :requires ([clojure.test :as t])
-        :task (let [nss '[dingsbums.ops-test dingsbums.sessions-test dingsbums.tar-test dingsbums.server-test]]
+        :task (let [nss '[dingsbums.ops-test dingsbums.sessions-test dingsbums.tar-test dingsbums.server-test dingsbums.cli-test]]
                 (apply require nss)
                 (let [{:keys [fail error]} (apply t/run-tests nss)]
                   (System/exit (if (zero? (+ fail error)) 0 1))))}
   server {:doc "Run the server: bb server [port] (default 8080)"
-          :task (apply (requiring-resolve 'dingsbums.server/-main) *command-line-args*)}
+          :task (apply (requiring-resolve 'dingsbums.cli/-main) *command-line-args*)}
   build {:doc "Release build of the frontend into public/js"
-         :task (shell "npx shadow-cljs release app")}}}
+         :task (shell "npx shadow-cljs release app")}
+
+  jar {:doc "Build dist/dingsbums.jar, the release jar bbin installs: bb jar [version]"
+       :depends [build]
+       :requires ([babashka.fs :as fs])
+       :task (let [version (release-version)
+                   stage (fs/path "dist" "jar-stage")
+                   src (fs/path stage "src" "dingsbums")
+                   res (fs/path stage "res")
+                   jar "dist/dingsbums.jar"]
+               (fs/delete-tree stage)
+               (fs/create-dirs src)
+               ;; the server side only; the frontend ships compiled
+               (doseq [f ["main.clj" "cli.clj" "server.clj" "sessions.clj" "tar.clj" "ops.cljc"]]
+                 (fs/copy (fs/path "src" "dingsbums" f) (fs/path src f)))
+               (fs/create-dirs (fs/path res "public" "js"))
+               (fs/copy "public/index.html" (fs/path res "public" "index.html"))
+               (fs/copy "public/js/main.js" (fs/path res "public" "js" "main.js"))
+               (fs/copy-tree "public/icons" (fs/path res "public" "icons"))
+               (spit (str (fs/path res "VERSION")) (str version "\n"))
+               (doseq [f ["LICENSE" "THIRD-PARTY-NOTICES.md"]]
+                 (fs/copy f (fs/path res f)))
+               ;; no :deps: http-kit and everything else comes with bb
+               (spit (str (fs/path stage "bb.edn")) (pr-str {:paths ["src" "res"]}))
+               (fs/delete-if-exists jar)
+               (shell {:dir (str stage)} "bb" "uberjar" "../dingsbums.jar" "-m" "dingsbums.main")
+               ;; bb uberjar always drops a root file named LICENSE (as in
+               ;; simpleviz's bb.edn); put it back
+               (with-open [zfs (java.nio.file.FileSystems/newFileSystem
+                                (java.net.URI. (str "jar:" (.toUri (fs/absolutize jar)))) {})]
+                 (java.nio.file.Files/copy (fs/path "LICENSE") (.getPath zfs "LICENSE" (make-array String 0))
+                                           (into-array java.nio.file.CopyOption
+                                                       [java.nio.file.StandardCopyOption/REPLACE_EXISTING])))
+               (println (str "created " jar " (" version ")")))}
+
+  jar:smoke {:doc "Build the jar and run it the way bbin's shim does: --version (also beside a bb.edn), then serve"
+             :depends [jar]
+             :requires ([babashka.fs :as fs] [babashka.http-client :as http] [babashka.process :as p]
+                        [clojure.java.io :as io] [clojure.string :as str])
+             :task (let [tmp (fs/create-temp-dir {:prefix "dingsbums-jar-smoke"})
+                         ;; a caller's folder with a bb.edn whose :paths shadow the jar
+                         hostile (fs/create-temp-dir {:prefix "dingsbums-jar-smoke-hostile"})
+                         jar (str (fs/absolutize "dist/dingsbums.jar"))
+                         version-line (str "dingsbums " (release-version))
+                         shim (str (fs/path tmp "dingsbums"))
+                         run-in (fn [dir & args]
+                                  (apply p/shell {:dir (str dir) :out :string :err :string :continue true}
+                                         "bb" shim args))
+                         fail (fn [& msg] (throw (ex-info (apply str msg) {:smoke true})))]
+                     (try
+                       (try
+                         ;; bbin's http-jar template, minus its metadata comments
+                         (spit shim (str "(require '[babashka.classpath :refer [add-classpath]])\n"
+                                         "(add-classpath " (pr-str jar) ")\n"
+                                         "(require '[dingsbums.main])\n"
+                                         "(apply dingsbums.main/-main *command-line-args*)\n"))
+                         (with-open [z (java.util.zip.ZipFile. jar)]
+                           (doseq [e ["LICENSE" "THIRD-PARTY-NOTICES.md" "VERSION" "public/index.html"
+                                      "public/js/main.js" "public/icons/dingsbums.svg" "dingsbums/main.clj"]]
+                             (when-not (.getEntry z e) (fail "the jar lacks " e))))
+                         (let [{:keys [out err]} (run-in tmp "--version")]
+                           (when-not (= version-line (str/trim out))
+                             (fail "--version printed " (pr-str out) ", not " version-line " " err))
+                           (print (str "ok: " out)))
+                         (spit (str (fs/path hostile "bb.edn")) (pr-str {:paths ["res"]}))
+                         (fs/create-dirs (fs/path hostile "res"))
+                         (spit (str (fs/path hostile "res" "VERSION")) "HIJACK\n")
+                         (let [{:keys [out err]} (run-in hostile "--version")]
+                           (when-not (= version-line (str/trim out))
+                             (fail "--version beside a bb.edn printed " (pr-str out) " " err))
+                           (println "ok: a bb.edn in the caller's folder does not shadow the jar"))
+                         (let [proc (p/process {:dir (str tmp) :err :inherit} "bb" shim "0")]
+                           (try
+                             (let [lines (line-seq (io/reader (:out proc)))
+                                   url (deref (future (some (fn [l] (second (re-matches (re-pattern "dingsbums: (http://localhost:\\d+)") l))) lines))
+                                              60000 nil)
+                                   status (fn [path] (:status (http/get (str url path) {:throw false})))]
+                               (when-not url (fail "the server printed no URL"))
+                               (doseq [path ["/" "/js/main.js" "/icons/dingsbums.svg"]]
+                                 (when-not (= 200 (status path)) (fail "GET " path " answered " (status path))))
+                               (when-not (= 404 (status "/icons")) (fail "GET /icons is no 404"))
+                               (println (str "ok: serves " url)))
+                             (finally (p/destroy-tree proc))))
+                         (finally (fs/delete-tree tmp) (fs/delete-tree hostile)))
+                       (catch clojure.lang.ExceptionInfo e
+                         (if (:smoke (ex-data e))
+                           (do (println (str "jar:smoke FAILED: " (ex-message e)))
+                               (System/exit 1))
+                           (throw e)))))}
+
+  release {:doc "Tag a release from a clean main that matches origin: bb release vX.Y.Z (the tag's workflow publishes the jar)"
+           :requires ([clojure.string :as str])
+           :task (let [tag (first *command-line-args*)
+                       git (fn [& args] (str/trim (:out (apply shell {:out :string} "git" args))))
+                       die (fn [& msg] (binding [*out* *err*] (println (apply str "release: " msg))) (System/exit 1))]
+                   (when-not (re-matches (re-pattern "v(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)") (str tag))
+                     (die "usage: bb release vX.Y.Z"))
+                   (when-not (= "main" (git "rev-parse" "--abbrev-ref" "HEAD")) (die "not on main"))
+                   (when (seq (git "status" "--porcelain")) (die "the working tree is not clean"))
+                   (git "fetch" "--quiet" "--tags" "origin")
+                   (when-not (= (git "rev-parse" "HEAD") (git "rev-parse" "origin/main"))
+                     (die "main is not the same as origin/main"))
+                   (when (seq (git "tag" "--list" tag)) (die tag " exists"))
+                   (git "tag" "-a" tag "-m" (str "dingsbums " tag))
+                   (git "push" "origin" tag)
+                   (println (str "pushed " tag "; the Release workflow builds and publishes it")))}}}

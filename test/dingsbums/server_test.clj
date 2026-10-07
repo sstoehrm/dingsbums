@@ -54,7 +54,11 @@
   (is (= 200 (:status (req :get "/"))))
   (is (re-find #"text/html" (get-in (req :get "/") [:headers "content-type"])))
   (is (= 404 (:status (req :get "/nope.js"))))
-  (is (= 404 (:status (server/handler {:request-method :get :uri "/../bb.edn"}))) "no path traversal"))
+  (is (= 404 (:status (server/handler {:request-method :get :uri "/../bb.edn"}))) "no path traversal")
+  (is (= 404 (:status (server/handler {:request-method :get :uri "/icons/../../bb.edn"}))) "no traversal from a subfolder")
+  (is (= "image/svg+xml" (get-in (req :get "/icons/dingsbums.svg") [:headers "content-type"])))
+  (is (= 404 (:status (req :get "/icons"))) "no folders")
+  (is (= 404 (:status (req :get "/js/manifest.edn"))) "only known file types"))
 
 (deftest hello-gets-snapshot-and-ops-reach-others-only
   (let [sid (create!) c1 (connect sid) c2 (connect sid)]
