@@ -399,7 +399,7 @@
       (#{"Delete" "Backspace"} key) [:selection/delete]
       (= key "Escape") [:selection/clear]
       (= key " ") [:space true]
-      (or shift? alt? repeat?) nil
+      (or alt? repeat?) nil
       (= k "s") [:tool/shapes]
       (= k "h") [:hand/toggle]
       :else (when-let [tool ({"v" :select "t" :text "f" :frame "n" :sticky "l" :connection} k)]

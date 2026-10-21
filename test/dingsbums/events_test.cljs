@@ -62,7 +62,7 @@
   (doseq [[k tool] {"v" :select "t" :text "f" :frame "n" :sticky "l" :connection}]
     (is (= [:tool/select tool] (ev/key-action {:key k})) k))
   (is (= [:tool/select :text] (ev/key-action {:key "T"})) "caps lock")
-  (is (nil? (ev/key-action {:key "T" :shift? true})) "not with shift")
+  (is (= [:tool/select :text] (ev/key-action {:key "T" :shift? true})) "with shift too: the tooltips show capitals")
   (is (= [:tool/shapes] (ev/key-action {:key "s"})))
   (is (= [:hand/toggle] (ev/key-action {:key "h"})))
   (is (nil? (ev/key-action {:key "f" :alt? true})) "Alt+letter is the browser's")
