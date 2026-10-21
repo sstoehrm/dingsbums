@@ -100,7 +100,7 @@
 
 (defn session-not-found [db sid & _]
   (when (= sid (:session db))
-    {:db (assoc db :route :landing :session nil :error "Session not found") :set-hash ""}))
+    {:db (assoc db :route :landing :session nil :error "Session not found" :loading? false) :set-hash ""}))
 
 (defn session-missing [db]
   {:db (merge db board-reset {:route :landing :session nil :error "Session expired or not found"})
@@ -367,11 +367,16 @@
         o (model/make (:objects db) kind {:x (- cx (/ w 2)) :y (- cy (/ h 2)) :w w :h h} extra)]
     (commit (assoc db :tool :select :selection #{(:id o)}) {(:id o) o})))
 
+(defn- pasteable?
+  "On a loaded board: the snapshot would drop what is pasted before it."
+  [db]
+  (and (= :board (:route db)) (not (:loading? db))))
+
 (defn paste-text [db text]
-  (when (= :board (:route db)) (place db :text 300 100 {:text text})))
+  (when (pasteable? db) (place db :text 300 100 {:text text})))
 
 (defn paste-image [db src w h]
-  (when (= :board (:route db))
+  (when (pasteable? db)
     (if (> (count src) max-image-chars)
       {:db (assoc db :message "Image too large (max 15 MB)")}
       (let [w (max 1 w) h (max 1 h) s (min 1 (/ 600 w) (/ 600 h))]

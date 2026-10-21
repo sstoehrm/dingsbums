@@ -108,8 +108,8 @@
   (is (nil? (ev/session-exists (assoc board :session "other") "s1")) "stale answer for a session we left")
   (is (= {:url "ws://localhost/ws" :params {:session "s1"}}
          (select-keys (:hammer.tubes/create (ev/session-exists (assoc board :route :checking) "s1")) [:url :params])))
-  (let [fx (ev/session-not-found (assoc board :route :checking) "s1")]
-    (is (= [:landing "Session not found"] ((juxt :route :error) (:db fx))))
+  (let [fx (ev/session-not-found (assoc board :route :checking :loading? true) "s1")]
+    (is (= [:landing "Session not found" false] ((juxt :route :error :loading?) (:db fx))))
     (is (= "" (:set-hash fx))))
   (let [fx (ev/session-missing with-objs)]
     (is (= [:landing "Session expired or not found" {}] ((juxt :route :error :objects) (:db fx))))
@@ -295,7 +295,9 @@
     (is (= [600 150] [(:w o) (:h o)]) "scaled to fit 600×600"))
   (is (= "Image too large (max 15 MB)"
          (get-in (ev/paste-image board (apply str (repeat 15000001 "a")) 10 10) [:db :message])))
-  (is (nil? (ev/paste-text ev/initial-db "x")) "ignored on the landing screen"))
+  (is (nil? (ev/paste-text ev/initial-db "x")) "ignored on the landing screen")
+  (is (nil? (ev/paste-text (assoc board :loading? true) "x")) "ignored until the snapshot, which would drop it")
+  (is (nil? (ev/paste-image (assoc board :loading? true) "data:image/png;base64,AA" 10 10))))
 
 ;; tube wiring, through hammer with a fake WebSocket
 
