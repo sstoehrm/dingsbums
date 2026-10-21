@@ -139,7 +139,23 @@
 
 ;; tools, camera, misc
 
-(defn select-tool [db tool] {:db (assoc db :tool tool)})
+(defn select-tool
+  "Picks a tool; picking the active one again goes back to Select."
+  [db tool]
+  {:db (assoc db :tool (if (= tool (:tool db)) :select tool))})
+
+(defn tool-hint
+  "What to do with the active tool, nil for Select."
+  [tool shape-kind]
+  (let [place (fn [what k] (str "Click or drag on the board to place " what " · " k " or Esc to cancel"))]
+    (case tool
+      :text (place "a text" "T")
+      :frame (place "a frame" "F")
+      :sticky (place "a sticky note" "N")
+      :shape (str "Click or drag on the board to place a " ({:rect "rectangle"} shape-kind (name shape-kind))
+                  " · S for the next shape, Esc to cancel")
+      :connection "Drag from one object to another to connect them · L or Esc to cancel"
+      nil)))
 (defn select-shape [db shape] {:db (assoc db :tool :shape :shape-kind shape)})
 (defn shapes-key
   "S: the shape tool, and pressed again the next shape."

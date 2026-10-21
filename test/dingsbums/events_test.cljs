@@ -72,6 +72,16 @@
   (is (= :star (get-in (ev/shapes-key (assoc board :tool :shape :shape-kind :rect)) [:db :shape-kind])) "again: the next shape")
   (is (= :circle (get-in (ev/shapes-key (assoc board :tool :shape :shape-kind :arrow)) [:db :shape-kind])) "round"))
 
+(deftest tool-toggle-and-hint
+  (is (= :sticky (get-in (ev/select-tool board :sticky) [:db :tool])))
+  (is (= :select (get-in (ev/select-tool (assoc board :tool :sticky) :sticky) [:db :tool])) "again: back to Select")
+  (is (= :select (get-in (ev/select-tool board :select) [:db :tool])))
+  (is (nil? (ev/tool-hint :select :rect)))
+  (is (= "Click or drag on the board to place a sticky note · N or Esc to cancel" (ev/tool-hint :sticky :rect)))
+  (is (= "Click or drag on the board to place a star · S for the next shape, Esc to cancel" (ev/tool-hint :shape :star)))
+  (is (= "Drag from one object to another to connect them · L or Esc to cancel" (ev/tool-hint :connection :rect)))
+  (doseq [t [:text :frame]] (is (string? (ev/tool-hint t :rect)) t)))
+
 (deftest theme
   (let [fx (ev/theme-select board :nord)]
     (is (= :nord (get-in fx [:db :theme])))

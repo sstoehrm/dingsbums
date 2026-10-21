@@ -2,6 +2,7 @@
   "Landing screen and the DOM overlays on top of the board."
   (:require [hammer.core :refer [defc dispatch]]
             [dingsbums.board :as board]
+            [dingsbums.events :as events]
             [dingsbums.geom :as geom]
             [dingsbums.model :as model]
             [dingsbums.themes :as themes]))
@@ -58,6 +59,10 @@
     [:span.sep]
     [:button {:title "Undo (Ctrl+Z)" :on-click [:history/undo]} "↶"]
     [:button {:title "Redo (Ctrl+Shift+Z)" :on-click [:history/redo]} "↷"]]])
+
+(defc tool-hint [] [tool [:tool] shape [:shape-kind] drag [:drag]
+                    hint (events/tool-hint tool shape)]
+  [:div.hint {:hidden (or (nil? hint) (some? drag))} hint])
 
 (defc zoom-bar [] [zoom [:camera :zoom] hand? [:hand?]]
   [:div.zoom-bar
@@ -120,6 +125,7 @@
      [session-bar]
      [toolbar]
      [zoom-bar]
+     [tool-hint]
      [selection-toolbar]
      (when editing-id [text-editor])]
     [landing]))
