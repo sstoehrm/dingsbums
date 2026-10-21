@@ -22,7 +22,8 @@ UNIT="$UNIT_DIR/dingsbums.service"
 
 die() { echo "install: $*" >&2; exit 1; }
 
-installed_port() {
+installed_port() { # empty when there is no unit yet
+  [ -f "$UNIT" ] || return 0
   sed -nE 's/^ExecStart=.* -m dingsbums\.cli ([0-9]+)$/\1/p' "$UNIT" 2>/dev/null | head -n1
 }
 

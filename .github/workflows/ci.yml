@@ -66,6 +66,8 @@ jobs:
           cp "$(command -v bb)" dist/dingsbums.jar $tmp/dist/
           cp install-service.sh $tmp/dist/install.sh
           export DINGSBUMS_PREFIX=$tmp/opt DINGSBUMS_UNIT_DIR=$tmp/units SYSTEMCTL=true
+          bash $tmp/dist/install.sh
+          grep -q -- "-m dingsbums.cli 8080$" $tmp/units/dingsbums.service
           bash $tmp/dist/install.sh 9000
           bash $tmp/dist/install.sh
           grep -x "ExecStart=$tmp/opt/bb -cp $tmp/opt/dingsbums.jar -m dingsbums.cli 9000" $tmp/units/dingsbums.service
