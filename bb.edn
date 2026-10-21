@@ -108,6 +108,37 @@
                                (System/exit 1))
                            (throw e)))))}
 
+  dist {:doc "Build dist/dingsbums-<version>-linux-<arch>/ for an offline server: a static bb, the jar and install.sh (the service installer): bb dist [version]; DINGSBUMS_ARCH=aarch64 for arm64"
+        :depends [jar]
+        :requires ([babashka.fs :as fs] [babashka.http-client :as http] [clojure.string :as str])
+        :task (let [version (release-version)
+                    arch (or (System/getenv "DINGSBUMS_ARCH") "amd64")
+                    bb-version (System/getProperty "babashka.version")
+                    tgz (str "babashka-" bb-version "-linux-" arch "-static.tar.gz")
+                    url (str "https://github.com/babashka/babashka/releases/download/v" bb-version "/" tgz)
+                    out (fs/path "dist" (str "dingsbums-" version "-linux-" arch))
+                    tmp (fs/create-temp-dir {:prefix "dingsbums-dist"})
+                    get-bytes (fn [u] (:body (http/get u {:as :bytes})))]
+                (try
+                  (println (str "downloading " url))
+                  (let [bytes (get-bytes url)
+                        want (first (str/split (str/trim (String. ^bytes (get-bytes (str url ".sha256")))) (re-pattern "\\s+")))
+                        have (apply str (map (fn [b] (format "%02x" b))
+                                             (.digest (java.security.MessageDigest/getInstance "SHA-256") bytes)))]
+                    (when-not (= want have)
+                      (throw (ex-info (str tgz ": sha256 " have ", expected " want) {})))
+                    (fs/write-bytes (fs/path tmp tgz) bytes))
+                  (shell {:dir (str tmp)} "tar" "xzf" tgz "bb")
+                  (fs/delete-tree out)
+                  (fs/create-dirs out)
+                  (fs/copy (fs/path tmp "bb") (fs/path out "bb"))
+                  (fs/copy "dist/dingsbums.jar" (fs/path out "dingsbums.jar"))
+                  (fs/copy "install-service.sh" (fs/path out "install.sh"))
+                  (doseq [f ["bb" "install.sh"]]
+                    (fs/set-posix-file-permissions (fs/path out f) "rwxr-xr-x"))
+                  (finally (fs/delete-tree tmp)))
+                (println (str "created " out "/ (bb " bb-version "); on the server: sudo ./install.sh [port]")))}
+
   release {:doc "Tag a release from a clean main that matches origin: bb release vX.Y.Z (the tag's workflow publishes the jar)"
            :requires ([clojure.string :as str])
            :task (let [tag (first *command-line-args*)

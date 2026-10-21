@@ -62,7 +62,7 @@
     (is (contains? fx :hammer.tubes/destroy)))
   (let [fx (ev/route-changed ev/initial-db " abc ")]
     (is (= [:checking "abc"] ((juxt :route :session) (:db fx))))
-    (is (= "/api/sessions/abc" (get-in fx [:http :uri])))
+    (is (= "api/sessions/abc" (get-in fx [:http :uri])) "relative: works under a proxy's path prefix")
     (is (= [:session/exists "abc"] (get-in fx [:http :on-success]))))
   (is (nil? (ev/route-changed board "s1")) "already on that board")
   (is (nil? (ev/session-exists (assoc board :session "other") "s1")) "stale answer for a session we left")
@@ -77,6 +77,11 @@
   (is (= "x" (:set-hash (ev/landing-join (assoc ev/initial-db :join-input " x ")))))
   (is (nil? (ev/landing-join (assoc ev/initial-db :join-input "  "))))
   (is (= "new" (:set-hash (ev/session-created ev/initial-db {:id "new"})))))
+
+(deftest ws-url
+  (is (= "ws://localhost/ws" (ev/ws-url)))
+  (is (= "wss://example.com/dingsbums/ws" (ev/ws-url "https://example.com/dingsbums/#s1")) "under a proxy's path prefix")
+  (is (= "ws://example.com:8080/ws" (ev/ws-url "http://example.com:8080/"))))
 
 (deftest creating-objects
   (testing "click creates a default-size object centered on the point"

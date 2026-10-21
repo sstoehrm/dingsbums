@@ -117,8 +117,10 @@
   []
   (swap! s/sessions s/expire (now)))
 
-(defn start! [port]
-  (http/run-server #'handler {:port port :max-ws max-frame :max-body max-body :legacy-return-value? false}))
+(defn start!
+  "Listens on loopback only: other machines reach it through a reverse proxy."
+  [port]
+  (http/run-server #'handler {:ip "127.0.0.1" :port port :max-ws max-frame :max-body max-body :legacy-return-value? false}))
 
 (defn serve!
   "Runs the server on port (0: any free port) until the process ends."

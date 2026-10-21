@@ -58,3 +58,15 @@ jobs:
           tmp=$(mktemp -d)
           DINGSBUMS_HOME=$tmp/home DINGSBUMS_BIN=$tmp/bin DINGSBUMS_JAR=dist/dingsbums.jar bash install.sh
           DINGSBUMS_HOME=$tmp/home $tmp/bin/dingsbums --version
+
+      - name: install-service.sh writes a valid unit and keeps its port
+        run: |
+          tmp=$(mktemp -d)
+          mkdir $tmp/dist
+          cp "$(command -v bb)" dist/dingsbums.jar $tmp/dist/
+          cp install-service.sh $tmp/dist/install.sh
+          export DINGSBUMS_PREFIX=$tmp/opt DINGSBUMS_UNIT_DIR=$tmp/units SYSTEMCTL=true
+          bash $tmp/dist/install.sh 9000
+          bash $tmp/dist/install.sh
+          grep -x "ExecStart=$tmp/opt/bb -cp $tmp/opt/dingsbums.jar -m dingsbums.cli 9000" $tmp/units/dingsbums.service
+          systemd-analyze verify $tmp/units/dingsbums.service
