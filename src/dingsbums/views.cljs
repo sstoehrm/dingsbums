@@ -28,7 +28,7 @@
     (dispatch [:theme/select (when (seq v) (keyword v))])))
 
 (defc session-bar [] [sid [:session] online? [:online?] msg [:message] theme [:theme]
-                      export-url (str "/api/sessions/" sid "/export")]
+                      export-url (str "api/sessions/" sid "/export")]
   [:div.session-bar
    [:code.sid sid]
    [:button {:title "Copy session id" :on-click [:session/copy-id]} "Copy"]

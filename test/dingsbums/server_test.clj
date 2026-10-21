@@ -16,7 +16,7 @@
   (fn [t]
     (reset! s/sessions {})
     (let [srv (server/start! 0)]
-      (try (binding [*base* (str "localhost:" (http/server-port srv))] (t))
+      (try (binding [*base* (str "127.0.0.1:" (http/server-port srv))] (t))
            (finally (http/server-stop! srv))))))
 
 (defn- req [method path & [opts]]
@@ -59,6 +59,25 @@
   (is (= "image/svg+xml" (get-in (req :get "/icons/dingsbums.svg") [:headers "content-type"])))
   (is (= 404 (:status (req :get "/icons"))) "no folders")
   (is (= 404 (:status (req :get "/js/manifest.edn"))) "only known file types"))
+
+(defn- outbound-address
+  "The address this host sends from (connecting a UDP socket sends
+  nothing), nil when it has none besides loopback."
+  []
+  (try (with-open [s (java.net.DatagramSocket.)]
+         (.connect s (java.net.InetAddress/getByName "192.0.2.1") 9)
+         (let [^java.net.InetAddress a (.getLocalAddress s)]
+           (when-not (or (.isLoopbackAddress a) (.isAnyLocalAddress a)) a)))
+       (catch java.io.IOException _ nil)))
+
+(deftest listens-on-loopback-only
+  (if-let [addr (outbound-address)]
+    (let [port (parse-long (second (re-find #":(\d+)$" *base*)))]
+      (is (thrown? java.net.ConnectException
+                   (with-open [s (java.net.Socket.)]
+                     (.connect s (java.net.InetSocketAddress. ^java.net.InetAddress addr (int port)) 2000)))
+          (str "reachable on " addr)))
+    (println "listens-on-loopback-only: skipped, this host has no non-loopback IPv4 address")))
 
 (deftest hello-gets-snapshot-and-ops-reach-others-only
   (let [sid (create!) c1 (connect sid) c2 (connect sid)]

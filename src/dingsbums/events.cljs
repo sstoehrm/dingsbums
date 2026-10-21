@@ -53,8 +53,14 @@
         (update :selection #(into #{} (filter (partial contains? objects)) %))
         (update :editing #(when (and % (contains? objects (:id %))) %)))))
 
-(defn ws-url []
-  (str (if (= "https:" (.-protocol js/location)) "wss://" "ws://") (.-host js/location) "/ws"))
+(defn ws-url
+  "The op socket's URL: ws beside the page (href, default the current one),
+  so it keeps a reverse proxy's path prefix."
+  ([] (ws-url (.-href js/location)))
+  ([href]
+   (let [u (js/URL. "ws" href)]
+     (set! (.-protocol u) (if (= "https:" (.-protocol u)) "wss:" "ws:"))
+     (.toString u))))
 
 (defn receive
   "Tube :on-receive: dispatch only the events the server may send."
@@ -75,7 +81,7 @@
       :else
       {:db (merge db board-reset {:route :checking :session sid :error nil})
        :hammer.tubes/destroy {}
-       :http {:uri (str "/api/sessions/" (js/encodeURIComponent sid)) :response-format :text
+       :http {:uri (str "api/sessions/" (js/encodeURIComponent sid)) :response-format :text
               :on-success [:session/exists sid] :on-failure [:session/not-found sid]}})))
 
 (defn session-exists [db sid & _]
@@ -96,7 +102,7 @@
 (defn landing-input [db s] {:db (assoc db :join-input s)})
 
 (defn landing-create [_]
-  {:http {:method :post :uri "/api/sessions" :on-success [:session/created] :on-failure [:landing/failed]}})
+  {:http {:method :post :uri "api/sessions" :on-success [:session/created] :on-failure [:landing/failed]}})
 
 (defn session-created [db {:keys [id]}]
   (when-not (= :board (:route db)) {:db (assoc db :error nil) :set-hash id}))
@@ -324,7 +330,7 @@
 (defn import-file [db file]
   (let [sid (:session db)]
     {:db (assoc db :message "Importing…")
-     :http {:method :post :uri (str "/api/sessions/" (js/encodeURIComponent sid) "/import")
+     :http {:method :post :uri (str "api/sessions/" (js/encodeURIComponent sid) "/import")
             :body file :headers {"Content-Type" "application/x-tar"} :response-format :text
             :on-success [:import/done sid] :on-failure [:import/failed sid]}}))
 

@@ -66,6 +66,35 @@ Both write `~/.local/bin/dingsbums`, so use one or the other. Then:
     dingsbums update    # install the latest release
     dingsbums --version
 
+dingsbums listens on 127.0.0.1 only. To let others join, put a reverse
+proxy in front of it (it works at `/` or under a path), or for a quick
+share forward the port: `ssh -L 8080:localhost:8080 <your-host>`.
+
+### As a service on a server
+
+`bb dist` (in a checkout, see [Development](#development)) builds
+`dist/dingsbums-<version>-linux-amd64/`: a static babashka, the jar and a
+service installer. The server needs no internet access and no babashka. Copy the
+folder over, then:
+
+    sudo ./install.sh [port]    # default: the port it had, else 8080
+
+It installs into `/opt/dingsbums` and runs `dingsbums.service` (systemd,
+`DynamicUser`, started at boot, restarted when it stops). Running it again
+redeploys. `DINGSBUMS_ARCH=aarch64 bb dist` builds for arm64.
+
+Behind Caddy under `/dingsbums/`:
+
+    example.com {
+        redir /dingsbums /dingsbums/
+        handle_path /dingsbums/* {
+            reverse_proxy 127.0.0.1:8080
+        }
+    }
+
+The `redir` matters: without the trailing slash the page's relative URLs
+miss the prefix.
+
 ## Development
 
 Needs babashka, Node.js with npm, and a JDK 25 or newer (for the frontend
@@ -85,6 +114,7 @@ Tests:
     bb test           # backend
     npm test          # frontend
     bb jar:smoke      # builds the release jar and runs it the way bbin does
+    bb dist           # the offline service folder (downloads a static bb)
 
 Releasing: `bb release vX.Y.Z` on a clean main that matches origin tags and
 pushes; the tag's workflow tests, builds `dingsbums.jar` and publishes the
