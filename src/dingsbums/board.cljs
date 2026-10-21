@@ -178,7 +178,8 @@
   (.restore ctx))
 
 (defn- pointer [^js e x y]
-  {:sx x :sy y :button (.-button e) :shift? (.-shiftKey e) :t (.-timeStamp e)})
+  {:sx x :sy y :button (.-button e) :shift? (.-shiftKey e) :ctrl? (or (.-ctrlKey e) (.-metaKey e))
+   :t (.-timeStamp e)})
 
 (defn- on-down [^js e {:keys [x y]}]
   (.setPointerCapture (.-target e) (.-pointerId e))
@@ -190,8 +191,9 @@
 
 (defn- on-wheel [^js e {:keys [x y]}]
   (.preventDefault e)
-  (dispatch (events/wheel-action {:dx (.-deltaX e) :dy (.-deltaY e) :ctrl? (or (.-ctrlKey e) (.-metaKey e))
-                                  :shift? (.-shiftKey e) :sx x :sy y})))
+  (let [mode (.-deltaMode e) page (.-innerHeight js/window)]
+    (dispatch [:wheel {:dx (events/wheel-px (.-deltaX e) mode page) :dy (events/wheel-px (.-deltaY e) mode page)
+                       :ctrl? (or (.-ctrlKey e) (.-metaKey e)) :shift? (.-shiftKey e) :sx x :sy y}])))
 
 (defdraw board [] [objects [:objects] cam [:camera] sel [:selection] drag [:drag]
                    editing [:editing] tick [:img-tick] pref [:theme] dark? [:os-dark?]

@@ -50,10 +50,13 @@
          (some #(when (= v (name %)) %) themes/names))
        (catch :default _ nil)))
 
+(defn- stored-hand? []
+  (try (= "1" (js/localStorage.getItem events/hand-storage-key)) (catch :default _ false)))
+
 (defn- on-resize [] (dispatch [:viewport (.-innerWidth js/window) (.-innerHeight js/window)]))
 
 (defn init []
-  (mount! [views/app] (root) (assoc events/initial-db :theme (stored-theme)))
+  (mount! [views/app] (root) (assoc events/initial-db :theme (stored-theme) :hand? (stored-hand?)))
   (let [dark (js/window.matchMedia "(prefers-color-scheme: dark)")]
     (.addEventListener dark "change" #(dispatch [:theme/os (.-matches %)]))
     (dispatch [:theme/os (.-matches dark)]))

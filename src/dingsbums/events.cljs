@@ -15,7 +15,7 @@
   {:route :landing :session nil :join-input "" :error nil :message nil :online? false
    :objects {} :history {:undo [] :redo []} :selection #{} :tool :select :shape-kind :rect
    :camera {:x 0 :y 0 :zoom 1} :drag nil :editing nil :space? false :img-tick 0
-   :viewport [1024 768] :theme nil :os-dark? false})
+   :viewport [1024 768] :theme nil :os-dark? false :hand? false})
 
 (def ^:private board-reset
   (select-keys initial-db [:objects :history :selection :tool :camera :drag :editing :message :online?]))
@@ -31,6 +31,14 @@
 (reg-fx :clipboard/write (fn [s] (some-> js/navigator .-clipboard (.writeText s) (.catch (fn [_] nil)))))
 
 (def theme-storage-key "dingsbums-theme")
+(def hand-storage-key "dingsbums-hand")
+
+(reg-fx :hand/store
+        (fn [on?]
+          (try (if on?
+                 (js/localStorage.setItem hand-storage-key "1")
+                 (js/localStorage.removeItem hand-storage-key))
+               (catch :default _ nil))))
 
 (reg-fx :theme/apply
         (fn [[pref theme]]
@@ -133,17 +141,40 @@
 
 (defn select-tool [db tool] {:db (assoc db :tool tool)})
 (defn select-shape [db shape] {:db (assoc db :tool :shape :shape-kind shape)})
-(defn wheel-action
-  "The event for a wheel turn: ctrl zooms at the pointer, shift scrolls sideways
-  (some browsers already swap the axes for shift, so both deltas count)."
-  [{:keys [dx dy ctrl? shift? sx sy]}]
-  (cond
-    ctrl? [:camera/zoom (js/Math.exp (* -0.01 dy)) sx sy]
-    shift? [:camera/pan (+ dx dy) 0]
-    :else [:camera/pan dx dy]))
+(defn shapes-key
+  "S: the shape tool, and pressed again the next shape."
+  [db]
+  (if (= :shape (:tool db))
+    (let [ks model/shape-kinds
+          i (.indexOf ks (:shape-kind db))]
+      (select-shape db (nth ks (mod (inc i) (count ks)))))
+    (select-shape db (:shape-kind db))))
+(defn hand-toggle
+  "Hand mode: dragging empty canvas pans and the wheel zooms."
+  [db]
+  (let [on? (not (:hand? db))] {:db (assoc db :hand? on?) :hand/store on?}))
 
 (defn camera-pan [db dx dy] {:db (update db :camera geom/pan (- dx) (- dy))})
 (defn camera-zoom [db factor sx sy] {:db (update db :camera geom/zoom-at factor [sx sy])})
+
+(def max-wheel-zoom 1.15)
+
+(defn wheel-px
+  "A wheel delta in pixels: deltaMode 1 counts lines, 2 pages."
+  [d mode page]
+  (case mode 1 (* 16 d) 2 (* page d) d))
+
+(defn wheel
+  "A wheel turn (deltas in pixels): ctrl zooms at the pointer, at most 15% per
+  event (a mouse notch) and in proportion below that (a trackpad pinch); in
+  hand mode the plain wheel zooms too. Shift scrolls sideways (some browsers
+  already swap the axes for shift, so both deltas count)."
+  [db {:keys [dx dy ctrl? shift? sx sy]}]
+  (cond
+    (or ctrl? (and (:hand? db) (not shift?)))
+    (camera-zoom db (-> (js/Math.exp (* -0.01 dy)) (max (/ 1 max-wheel-zoom)) (min max-wheel-zoom)) sx sy)
+    shift? (camera-pan db (+ dx dy) 0)
+    :else (camera-pan db dx dy)))
 (defn zoom-step
   "Zoom by factor around the middle of the viewport (the + and - buttons)."
   [db factor]
@@ -173,7 +204,7 @@
     (when (and o (not (:locked? o)) (not= :connection (:kind o)))
       (when-let [k (geom/handle-at o p (tol db geom/handle-px))] [o k]))))
 
-(defn- press [db {:keys [sx sy button shift? t]} p]
+(defn- press [db {:keys [sx sy button shift? ctrl? t]} p]
   (let [tool (:tool db) hit (hit-at db p) sel (:selection db)]
     (cond
       (or (= button 1) (:space? db)) (assoc db :drag {:type :pan :last [sx sy]})
@@ -191,8 +222,10 @@
               (let [sel (if (contains? sel (:id hit)) sel ids)]
                 (assoc db :selection sel
                           :drag {:type :move :origin p :start (model/movable (:objects db) sel) :last-sent t}))))
-          (assoc db :selection (if shift? sel #{})
-                    :drag {:type :band :start p :current p :shift? shift?}))))))
+          (if (and (:hand? db) (not shift?) (not ctrl?))
+            (assoc db :drag {:type :pan :last [sx sy] :start [sx sy] :clear? true})
+            (assoc db :selection (if shift? sel #{})
+                      :drag {:type :band :start p :current p :shift? shift?})))))))
 
 (defn pointer-down [db {:keys [button] :as e}]
   (when (<= button 1)
@@ -256,6 +289,8 @@
         :connect (connect db (:from drag) p)
         :band (band-select db drag p)
         (:move :resize) (let [[db ops] (model/finish-gesture db (:start drag))] (with-ops db ops))
+        :pan {:db (cond-> db
+                    (and (:clear? drag) (let [[x y] (:start drag)] (< (max (abs (- (:sx e) x)) (abs (- (:sy e) y))) 3))) (assoc :selection #{}))}
         {:db db}))))
 
 (defn dblclick [db e]
@@ -346,7 +381,12 @@
       (= key "F2") [:edit/start]
       (#{"Delete" "Backspace"} key) [:selection/delete]
       (= key "Escape") [:selection/clear]
-      (= key " ") [:space true])))
+      (= key " ") [:space true]
+      shift? nil
+      (= k "s") [:tool/shapes]
+      (= k "h") [:hand/toggle]
+      :else (when-let [tool ({"v" :select "t" :text "f" :frame "n" :sticky "l" :connection} k)]
+              [:tool/select tool]))))
 
 (doseq [[id f] {:route/changed route-changed
                 :session/exists session-exists
@@ -371,6 +411,9 @@
                 :camera/pan camera-pan
                 :camera/zoom camera-zoom
                 :camera/zoom-step zoom-step
+                :tool/shapes shapes-key
+                :hand/toggle hand-toggle
+                :wheel wheel
                 :viewport set-viewport
                 :space set-space
                 :image/loaded image-loaded

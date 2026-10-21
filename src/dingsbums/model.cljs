@@ -7,6 +7,7 @@
 
 (def default-size {:text [200 50] :frame [400 300] :shape [120 120] :sticky [200 200]})
 (def sticky-fill "#fff176")
+(def shape-kinds [:circle :rect :star :arrow])
 (def swatches [nil "#fff176" "#ffb74d" "#e57373" "#81c784" "#64b5f6" "#ba68c8" "#ffffff" "#000000"])
 (defn ink
   "Text color for a sticky with this #rrggbb fill: dark, or white on dark fills."

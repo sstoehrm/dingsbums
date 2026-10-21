@@ -6,6 +6,7 @@
             [hammer.testing :as t]
             [hammer.tubes :as tubes]
             [dingsbums.events :as ev]
+            [dingsbums.geom :as geom]
             [dingsbums.themes :as themes]))
 
 (def board (assoc ev/initial-db :route :board :session "s1"))
@@ -38,11 +39,34 @@
   (is (nil? (ev/key-action {:key "c" :ctrl? true})) "browser copy untouched")
   (is (nil? (ev/key-action {:key "a"}))))
 
-(deftest wheel-actions
-  (is (= [:camera/pan 3 40] (ev/wheel-action {:dx 3 :dy 40})))
-  (is (= [:camera/pan 40 0] (ev/wheel-action {:dx 0 :dy 40 :shift? true})) "shift scrolls sideways")
-  (is (= [:camera/pan 40 0] (ev/wheel-action {:dx 40 :dy 0 :shift? true})) "browsers that already swap the axes")
-  (is (= [:camera/zoom (js/Math.exp -0.4) 5 6] (ev/wheel-action {:dy 40 :ctrl? true :sx 5 :sy 6}))))
+(deftest wheel
+  (let [cam (fn [db e] (get-in (ev/wheel db (merge {:dx 0 :dy 0 :sx 0 :sy 0} e)) [:db :camera]))
+        zoom (fn [db e] (:zoom (cam db e)))
+        hand (assoc board :hand? true)]
+    (is (= {:x 3 :y 40 :zoom 1} (cam board {:dx 3 :dy 40})))
+    (is (= {:x 40 :y 0 :zoom 1} (cam board {:dy 40 :shift? true})) "shift scrolls sideways")
+    (is (= {:x 40 :y 0 :zoom 1} (cam board {:dx 40 :shift? true})) "browsers that already swap the axes")
+    (is (= 1.15 (zoom board {:dy -100 :ctrl? true})) "a mouse notch zooms in 15%")
+    (is (= (/ 1 1.15) (zoom board {:dy 100 :ctrl? true})) "and out 15%")
+    (is (= 1.15 (zoom board {:dy -1000 :ctrl? true})) "never more per event")
+    (is (= (js/Math.exp 0.04) (zoom board {:dy -4 :ctrl? true})) "a trackpad pinch stays proportional")
+    (is (= [5 6] (geom/world->screen (cam board {:dy -100 :ctrl? true :sx 5 :sy 6}) [5 6])) "at the pointer")
+    (is (= 1.15 (zoom hand {:dy -100})) "hand mode: the wheel zooms")
+    (is (= {:x 40 :y 0 :zoom 1} (cam hand {:dy 40 :shift? true})) "hand mode: shift still scrolls sideways"))
+  (is (= 40 (ev/wheel-px 40 0 800)) "pixels")
+  (is (= 48 (ev/wheel-px 3 1 800)) "lines (Firefox)")
+  (is (= 800 (ev/wheel-px 1 2 800)) "pages"))
+
+(deftest tool-keys
+  (doseq [[k tool] {"v" :select "t" :text "f" :frame "n" :sticky "l" :connection}]
+    (is (= [:tool/select tool] (ev/key-action {:key k})) k))
+  (is (= [:tool/select :text] (ev/key-action {:key "T"})) "caps lock")
+  (is (nil? (ev/key-action {:key "T" :shift? true})) "not with shift")
+  (is (= [:tool/shapes] (ev/key-action {:key "s"})))
+  (is (= [:hand/toggle] (ev/key-action {:key "h"})))
+  (is (= [:shape :rect] ((juxt :tool :shape-kind) (:db (ev/shapes-key board)))) "S picks the shape tool")
+  (is (= :star (get-in (ev/shapes-key (assoc board :tool :shape :shape-kind :rect)) [:db :shape-kind])) "again: the next shape")
+  (is (= :circle (get-in (ev/shapes-key (assoc board :tool :shape :shape-kind :arrow)) [:db :shape-kind])) "round"))
 
 (deftest theme
   (let [fx (ev/theme-select board :nord)]
@@ -150,6 +174,28 @@
   (is (nil? (ev/import-failed (assoc board :session "other") "s1" {})) "a late import answer from another session")
   (is (some? (ev/import-failed board "s1" {})))
   (is (nil? (ev/session-created board {:id "new"})) "already on a board"))
+
+(deftest hand-mode
+  (let [hand (assoc with-objs :hand? true :selection #{"a"})
+        band (fn [db mods]
+               (let [db (:db (ev/pointer-down db (merge (pe 190 -10) mods)))
+                     db (:db (ev/pointer-move db (pe 350 150 :t 100)))]
+                 (ev/pointer-up db (pe 350 150 :t 100))))]
+    (testing "dragging empty canvas pans and keeps the selection"
+      (let [fx (drag hand [500 500] [550 520])]
+        (is (= {:x -50 :y -20 :zoom 1} (get-in fx [:db :camera])))
+        (is (= #{"a"} (get-in fx [:db :selection])))))
+    (is (= #{} (get-in (drag hand [500 500] [501 501]) [:db :selection])) "a click on empty canvas clears")
+    (let [fx (drag hand [210 10] [260 10])]
+      (is (= [#{"b"} 250] [(get-in fx [:db :selection]) (get-in fx [:db :objects "b" :x])]) "objects still select and move"))
+    (is (= #{"a" "b"} (get-in (band hand {:shift? true}) [:db :selection])) "shift-drag bands, adding")
+    (is (= #{"b"} (get-in (band hand {:ctrl? true}) [:db :selection])) "ctrl-drag bands, replacing")
+    (is (= 3 (count (objects-of (drag (assoc hand :tool :sticky) [500 500] [500 500])))) "creating tools still create"))
+  (let [fx (ev/hand-toggle board)]
+    (is (true? (get-in fx [:db :hand?])))
+    (is (true? (:hand/store fx)) "remembered in this browser"))
+  (is (false? (get-in (ev/hand-toggle (assoc board :hand? true)) [:db :hand?])))
+  (is (true? (get-in (ev/route-changed (assoc board :hand? true) "") [:db :hand?])) "survives leaving a session"))
 
 (deftest navigation
   (let [db (:db (ev/pointer-down board (pe 100 100 :button 1)))

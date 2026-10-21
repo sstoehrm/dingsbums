@@ -42,16 +42,16 @@
    [:span.msg msg]])
 
 (def ^:private tools
-  [[:select "Select" "↖"] [:text "Text" "T"] [:frame "Frame" "▭"] [:shape "Shapes" "◆"]
-   [:sticky "Sticky note" "▤"] [:connection "Connection" "↗"]])
+  [[:select "Select (V)" "↖"] [:text "Text (T)" "T"] [:frame "Frame (F)" "▭"] [:shape "Shapes (S, again: next shape)" "◆"]
+   [:sticky "Sticky note (N)" "▤"] [:connection "Connection (L)" "↗"]])
 
-(def ^:private shapes [[:circle "●"] [:rect "■"] [:star "★"] [:arrow "➜"]])
+(def ^:private shape-icons {:circle "●" :rect "■" :star "★" :arrow "➜"})
 
 (defc toolbar [] [tool [:tool] shape [:shape-kind]]
   [:div.toolbar
    [:div.shapes {:hidden (not= tool :shape)}
-    (for [[k icon] shapes]
-      ^{:key k} [:button {:class (when (= k shape) "active") :title (name k) :on-click [:tool/shape k]} icon])]
+    (for [k model/shape-kinds]
+      ^{:key k} [:button {:class (when (= k shape) "active") :title (name k) :on-click [:tool/shape k]} (shape-icons k)])]
    [:div.tools
     (for [[k label icon] tools]
       ^{:key k} [:button {:class (when (= k tool) "active") :title label :on-click [:tool/select k]} icon])
@@ -59,8 +59,12 @@
     [:button {:title "Undo (Ctrl+Z)" :on-click [:history/undo]} "↶"]
     [:button {:title "Redo (Ctrl+Shift+Z)" :on-click [:history/redo]} "↷"]]])
 
-(defc zoom-bar [] [zoom [:camera :zoom]]
+(defc zoom-bar [] [zoom [:camera :zoom] hand? [:hand?]]
   [:div.zoom-bar
+   [:button {:class (when hand? "active") :on-click [:hand/toggle]
+             :title "Hand mode (H): drag the canvas to pan, the wheel zooms, Shift- or Ctrl-drag selects"}
+    "✋"]
+   [:span.sep]
    [:button {:title "Zoom out" :on-click [:camera/zoom-step 0.8]} "−"]
    [:span.zoom (str (js/Math.round (* 100 zoom)) "%")]
    [:button {:title "Zoom in" :on-click [:camera/zoom-step 1.25]} "+"]])
