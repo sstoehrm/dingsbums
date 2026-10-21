@@ -38,6 +38,8 @@ can't think of right now. That's what a whiteboard is full of.
 - Frames, sticky notes, text, shapes (circle, rectangle, star, arrow) and
   connections between them.
 - Fill colours, groups, locking, undo/redo.
+- Layering: bring a selection (or group) to the front, forward, backward or
+  to the back from the toolbar above it.
 - Paste images and text straight onto the board.
 - An infinite canvas: scroll to pan (shift + wheel sideways), ctrl + wheel or
   the + and − buttons to zoom.

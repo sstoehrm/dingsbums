@@ -350,6 +350,7 @@
 (defn selection-lock [db locked?] (change-selection db model/lock-changes locked?))
 (defn selection-group [db] (change-selection db model/group-changes))
 (defn selection-ungroup [db] (change-selection db model/ungroup-changes))
+(defn selection-layer [db move] (change-selection db model/layer-changes move))
 (defn selection-delete [db] (change-selection db model/delete-changes))
 (defn selection-clear [db] {:db (assoc db :selection #{} :tool :select)})
 
@@ -452,6 +453,7 @@
                 :selection/lock selection-lock
                 :selection/group selection-group
                 :selection/ungroup selection-ungroup
+                :selection/layer selection-layer
                 :selection/delete selection-delete
                 :selection/clear selection-clear
                 :history/undo history-undo

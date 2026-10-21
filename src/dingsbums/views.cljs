@@ -74,7 +74,10 @@
    [:span.zoom (str (js/Math.round (* 100 zoom)) "%")]
    [:button {:title "Zoom in" :on-click [:camera/zoom-step 1.25]} "+"]])
 
-(defc selection-toolbar [] [sel [:selection] objects [:objects] cam [:camera] drag [:drag] editing [:editing]
+(def ^:private layer-moves
+  [[:front "Bring to front" "⤒"] [:forward "Bring forward" "↑"] [:backward "Send backward" "↓"] [:back "Send to back" "⤓"]])
+
+(defc selection-toolbar [][sel [:selection] objects [:objects] cam [:camera] drag [:drag] editing [:editing]
                             os (vec (keep #(get objects %) sel))
                             b (geom/bounds (keep #(geom/obj-rect objects %) os))
                             pos (when b (geom/world->screen cam [(:x b) (:y b)]))
@@ -91,6 +94,8 @@
    (for [c colors]
      ^{:key (str c)} [:button.swatch {:title (or c "No fill") :style {:background-color (or c "transparent")}
                                       :on-click [:selection/fill c]}])
+   (for [[k label icon] layer-moves]
+     ^{:key k} [:button {:hidden locked? :title label :on-click [:selection/layer k]} icon])
    [:button {:on-click [:selection/lock (not locked?)]} (if locked? "Unlock" "Lock")]
    [:button {:hidden (not groupable?) :on-click [:selection/group]} "Group"]
    [:button {:hidden (not grouped?) :on-click [:selection/ungroup]} "Ungroup"]

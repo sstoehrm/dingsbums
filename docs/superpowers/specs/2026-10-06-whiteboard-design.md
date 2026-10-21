@@ -20,7 +20,7 @@ Figure: `.blend/specs/2026-10-06-whiteboard.edn` (simpleviz).
 
 ## Out of scope
 
-Rotation, z-order controls, presence/cursors, persistence across server
+Rotation, presence/cursors, persistence across server
 restarts, auth/accounts, touch gestures beyond what pointer events give.
 
 ## Layout
@@ -72,13 +72,20 @@ A session is a map of objects keyed by id; each object is one entry.
 - A new object gets `:z` = max existing `:z` + 1. Frames are drawn and hit
   below all other kinds regardless of `:z`; connections are drawn above frames
   and below the other objects.
+- **Layering** moves the selection to the front or back, or one step forward
+  or backward, within its layer (a frame never rises above a sticky). A
+  multi-selection (so a group) keeps its own order. Front and back give only
+  the selected objects a new `:z`; a step swaps places with the unselected
+  neighbour, which may be locked. Equal `:z` values (two clients creating at
+  once) are made distinct where a step needs them to be.
 - **Groups** are a shared `:group` id. Selecting any member selects the whole
   group. Grouping needs at least two selected objects (connections excluded)
   and gives them a fresh group id (replacing old ones); ungrouping removes
   `:group` from the selection.
 - **Locking** sets `:locked?` on every selected object (so a group locks as a
   whole). Locked objects can be selected, and unlocked from the selection
-  toolbar, but cannot be moved, resized, text-edited, recolored or deleted.
+  toolbar, but cannot be moved, resized, text-edited, recolored, re-layered
+  or deleted.
 - **Deleting** an object also deletes every connection whose `:from` or `:to`
   it was.
 
@@ -165,7 +172,7 @@ DOM overlays:
 |---|---|
 | top left | session id, copy button (`navigator.clipboard`), export (link to the export endpoint), import (file input → POST), "offline" badge while the tube is disconnected, one-line message for errors |
 | bottom left | tools: select, text, frame, shape (picker: circle, rectangle, star, arrow), sticky note, connection; undo ↶ and redo ↷ |
-| above the selection's bounding box | fill swatches (when every selected object is a shape or sticky), lock/unlock, group/ungroup, delete |
+| above the selection's bounding box | fill swatches (when every selected object is a shape or sticky), layering (to front ⤒, forward ↑, backward ↓, to back ⤓; hidden while all is locked), lock/unlock, group/ungroup, delete |
 | over the edited object | `<textarea>` while editing text |
 
 ### Pointer

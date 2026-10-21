@@ -262,6 +262,10 @@
       (is (= #{"a" "b"} (set (second (first (:tube/send fx)))))))
     (is (every? :locked? (objects-of (ev/selection-lock db true))))
     (is (= "#e57373" (get-in (ev/selection-fill db "#e57373") [:db :objects "b" :fill])))
+    (let [fx (ev/selection-layer (assoc db :selection #{"a"}) :front)]
+      (is (= ["b" "a"] (mapv :id (geom/draw-order (get-in fx [:db :objects])))))
+      (is (= [[:op/upsert [(assoc sticky :z 3)]]] (:tube/send fx)))
+      (is (= 1 (count (get-in fx [:db :history :undo])))))
     (is (= {:selection #{} :tool :select} (select-keys (:db (ev/selection-clear (assoc db :tool :text))) [:selection :tool])))))
 
 (deftest undo-redo-events
