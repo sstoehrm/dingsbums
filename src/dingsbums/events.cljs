@@ -15,10 +15,10 @@
   {:route :landing :session nil :join-input "" :error nil :message nil :online? false
    :objects {} :history {:undo [] :redo []} :selection #{} :tool :select :shape-kind :rect
    :camera {:x 0 :y 0 :zoom 1} :drag nil :editing nil :space? false :img-tick 0
-   :viewport [1024 768] :theme nil :os-dark? false :hand? false})
+   :viewport [1024 768] :theme nil :os-dark? false :hand? false :loading? false})
 
 (def ^:private board-reset
-  (select-keys initial-db [:objects :history :selection :tool :camera :drag :editing :message :online?]))
+  (select-keys initial-db [:objects :history :selection :tool :camera :drag :editing :message :online? :loading?]))
 
 (def send-interval 33)
 (def hit-px 6)
@@ -87,7 +87,7 @@
       nil
 
       :else
-      {:db (merge db board-reset {:route :checking :session sid :error nil})
+      {:db (merge db board-reset {:route :checking :session sid :error nil :loading? true})
        :hammer.tubes/destroy {}
        :http {:uri (str "api/sessions/" (js/encodeURIComponent sid)) :response-format :text
               :on-success [:session/exists sid] :on-failure [:session/not-found sid]}})))
@@ -137,7 +137,7 @@
 (defn tube-disconnected [db] {:db (assoc db :online? false)})
 
 (defn snapshot [db objects]
-  {:db (prune (assoc db :objects objects :history {:undo [] :redo []} :drag nil))})
+  {:db (prune (assoc db :objects objects :history {:undo [] :redo []} :drag nil :loading? false))})
 
 (defn remote-upsert [db objs] {:db (update db :objects ops/upsert objs)})
 (defn remote-patch [db patches] {:db (update db :objects ops/patch patches)})

@@ -17,6 +17,12 @@
     [:button {:type "submit"} "Join session"]]
    [:p.error err]])
 
+;; until the board's first snapshot is in: a big board takes a while to arrive
+(defc loading [] [online? [:online?]]
+  [:main.loading {:role "status"}
+   [:div.spinner]
+   [:p (if online? "Loading board…" "Connecting…")]])
+
 (defn- import-change [^js e]
   (let [^js input (.-target e)
         f (aget (.-files input) 0)]
@@ -118,8 +124,11 @@
                           :on-input (fn [^js e] (dispatch [:edit/input (.. e -target -value)]))
                           :on-blur [:edit/commit] :on-keydown edit-keydown}])
 
-(defc app [] [route [:route] editing-id [:editing :id]]
-  (if (= route :board)
+(defc app [] [route [:route] loading? [:loading?] editing-id [:editing :id]]
+  (cond
+    (= route :landing) [landing]
+    loading? [loading]
+    :else
     [:div.app
      [board/board]
      [session-bar]
@@ -127,5 +136,4 @@
      [zoom-bar]
      [tool-hint]
      [selection-toolbar]
-     (when editing-id [text-editor])]
-    [landing]))
+     (when editing-id [text-editor])]))

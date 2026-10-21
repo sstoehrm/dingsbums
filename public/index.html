@@ -23,6 +23,17 @@
   .landing .join { display: flex; gap: 8px; }
   .landing input { flex: 1; min-width: 0; font: inherit; padding: 6px 10px; border: 1px solid var(--panel-border);
                    border-radius: 6px; background: var(--panel); color: inherit; }
+  /* shown after a moment, so a small board does not flash it; transform only,
+     so it keeps turning while a big snapshot is parsed */
+  .loading { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 16px; color: var(--text-muted); font-size: 14px;
+    animation: loading-in .2s .3s both; }
+  .loading p { margin: 0; }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--panel-border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes loading-in { from { opacity: 0; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
   .error { color: #c62828; min-height: 1.2em; margin: 0; }
   .app { position: fixed; inset: 0; overflow: hidden; background: var(--bg); }
   .board { touch-action: none; }
