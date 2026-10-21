@@ -6,6 +6,6 @@
   },
   "devDependencies": {
     "jsdom": "30.1.3",
-    "shadow-cljs": "3.5.4"
+    "shadow-cljs": "3.5.7"
   }
 }
