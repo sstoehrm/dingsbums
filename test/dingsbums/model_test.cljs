@@ -144,7 +144,15 @@
       (let [tied (assoc os "q" (o "q" 1))
             lower (first (filter #{"p" "q"} (order tied #{} :front)))
             upper ({"p" "q" "q" "p"} lower)]
-        (is (= [upper lower] (filterv #{"p" "q"} (order tied #{lower} :forward))))))
+        (is (= [upper lower] (filterv #{"p" "q"} (order tied #{lower} :forward)))))
+      (is (= #{"r" "s"} (set (keys (m/layer-changes (assoc os "q" (o "q" 1)) #{"r"} :forward))))
+          "a tie the step does not touch keeps its z")
+      (let [tied (assoc os "r" (o "r" 4))]
+        (doseq [[sel other] [["r" "s"] ["s" "r"]]]
+          (let [ch (m/layer-changes tied #{sel} :front)]
+            (is (> (get-in ch [sel :z]) (:z (tied other))) "front means above the tie on every client")))))
+    (testing "a missing z counts as 0"
+      (is (= ["p" "q"] (order {"p" (o "p" -1) "q" (dissoc (o "q" 0) :z)} #{"p"} :back))))
     (testing "locked objects are not moved"
       (is (= {} (m/layer-changes (assoc-in os ["p" :locked?] true) #{"p"} :front)))
       (is (= ["f" "g" "pq" "q" "r" "s" "p"] (order (assoc-in os ["q" :locked?] true) #{"p" "q"} :front))))))

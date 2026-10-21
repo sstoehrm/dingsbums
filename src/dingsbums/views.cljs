@@ -77,7 +77,7 @@
 (def ^:private layer-moves
   [[:front "Bring to front" "⤒"] [:forward "Bring forward" "↑"] [:backward "Send backward" "↓"] [:back "Send to back" "⤓"]])
 
-(defc selection-toolbar [][sel [:selection] objects [:objects] cam [:camera] drag [:drag] editing [:editing]
+(defc selection-toolbar [] [sel [:selection] objects [:objects] cam [:camera] drag [:drag] editing [:editing]
                             os (vec (keep #(get objects %) sel))
                             b (geom/bounds (keep #(geom/obj-rect objects %) os))
                             pos (when b (geom/world->screen cam [(:x b) (:y b)]))

@@ -89,22 +89,36 @@
   (reduce (fn [v i] (if (and (sel? (v i)) (not (sel? (v (inc i))))) (assoc v i (v (inc i)) (inc i) (v i)) v))
           v (range (- (count v) 2) -1 -1)))
 
+(defn- raised
+  "zs (ascending) raised just enough to be strictly increasing from index i to j,
+  and past j while a raised value collides; the rest as it was."
+  [zs i j]
+  (loop [k i prev (get zs (dec i) ##-Inf) out (subvec zs 0 i)]
+    (let [z (get zs k)]
+      (if (and z (or (<= k j) (<= z prev)))
+        (let [z (max z (inc prev))] (recur (inc k) z (conj out z)))
+        (into out (subvec zs k))))))
+
 (defn- layer-z
   "{obj z} for the layer l (bottom to top) rearranged by move."
   [l sel? move]
-  (let [zs (map #(:z % 0) l)
-        n (count (filter sel? l))
-        reordered (fn [v] (when (not= v l) v))]
+  (let [zs (mapv #(:z % 0) l)
+        s (filter sel? l)
+        sz (map #(:z % 0) s)
+        uz (keep #(when-not (sel? %) (:z % 0)) l)]
     (case move
-      :front (when (reordered (into (filterv (complement sel?) l) (filter sel? l)))
-               (zipmap (filter sel? l) (map #(+ (last zs) 1 %) (range))))
-      :back (when (reordered (into (filterv sel? l) (remove sel? l)))
-              (zipmap (filter sel? l) (map #(+ (- (first zs) n) %) (range))))
-      ;; the same z values in the new order, made strictly increasing: equal z
-      ;; (two clients creating at once) would otherwise swap nothing
+      ;; compared by z, not draw order: equal z may draw either way round on another client
+      :front (when (and (seq s) (seq uz) (<= (apply min sz) (apply max uz)))
+               (zipmap s (map #(+ (peek zs) 1 %) (range))))
+      :back (when (and (seq s) (seq uz) (>= (apply max sz) (apply min uz)))
+              (zipmap s (map #(+ (- (first zs) (count s)) %) (range))))
+      ;; the same z values in the new order, made strictly increasing around the
+      ;; step: equal z (two clients creating at once) would otherwise swap nothing
       (:forward :backward)
-      (when-let [v (reordered (if (= move :forward) (step-up l sel?) (vec (rseq (step-up (vec (rseq l)) sel?)))))]
-        (zipmap v (rest (reductions (fn [prev z] (max z (inc prev))) ##-Inf zs)))))))
+      (let [v (if (= move :forward) (step-up l sel?) (vec (rseq (step-up (vec (rseq l)) sel?))))
+            changed (keep-indexed (fn [i o] (when (not= o (l i)) i)) v)]
+        (when (seq changed)
+          (zipmap v (raised zs (first changed) (last changed))))))))
 
 (defn layer-changes
   "Moves the unlocked objects among ids to the :front or :back, or one step
