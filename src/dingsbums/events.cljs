@@ -152,7 +152,8 @@
 (defn hand-toggle
   "Hand mode: dragging empty canvas pans and the wheel zooms."
   [db]
-  (let [on? (not (:hand? db))] {:db (assoc db :hand? on?) :hand/store on?}))
+  (when (= :board (:route db))
+    (let [on? (not (:hand? db))] {:db (assoc db :hand? on?) :hand/store on?})))
 
 (defn camera-pan [db dx dy] {:db (update db :camera geom/pan (- dx) (- dy))})
 (defn camera-zoom [db factor sx sy] {:db (update db :camera geom/zoom-at factor [sx sy])})
@@ -171,6 +172,7 @@
   already swap the axes for shift, so both deltas count)."
   [db {:keys [dx dy ctrl? shift? sx sy]}]
   (cond
+    (and (:hand? db) (not ctrl?) (not shift?) (zero? dy)) (camera-pan db dx 0)
     (or ctrl? (and (:hand? db) (not shift?)))
     (camera-zoom db (-> (js/Math.exp (* -0.01 dy)) (max (/ 1 max-wheel-zoom)) (min max-wheel-zoom)) sx sy)
     shift? (camera-pan db (+ dx dy) 0)
@@ -208,7 +210,7 @@
   (let [tool (:tool db) hit (hit-at db p) sel (:selection db)]
     (cond
       (or (= button 1) (:space? db)) (assoc db :drag {:type :pan :last [sx sy]})
-      (creating-tools tool) (assoc db :drag {:type :create :start p :current p})
+      (creating-tools tool) (assoc db :drag {:type :create :kind tool :start p :current p})
       (= tool :connection) (cond-> db
                              (and hit (not= :connection (:kind hit)))
                              (assoc :drag {:type :connect :from (:id hit) :current p}))
@@ -257,9 +259,8 @@
                              t))
       nil)))
 
-(defn- create-object [db start end]
-  (let [kind (:tool db)
-        r (geom/rect-from-points start end)
+(defn- create-object [db {:keys [kind start]} end]
+  (let [r (geom/rect-from-points start end)
         [dw dh] (model/default-size kind)
         rect (if (and (< (:w r) 5) (< (:h r) 5))
                {:x (- (first start) (/ dw 2)) :y (- (second start) (/ dh 2)) :w dw :h dh}
@@ -285,7 +286,7 @@
   (when-let [drag (:drag db)]
     (let [db (assoc db :drag nil) p (world db e)]
       (case (:type drag)
-        :create (create-object db (:start drag) p)
+        :create (create-object db drag p)
         :connect (connect db (:from drag) p)
         :band (band-select db drag p)
         (:move :resize) (let [[db ops] (model/finish-gesture db (:start drag))] (with-ops db ops))
@@ -371,7 +372,7 @@
 
 (defn key-action
   "The event for a key press outside text inputs, or nil to leave it to the browser."
-  [{:keys [key ctrl? shift?]}]
+  [{:keys [key ctrl? shift? alt? repeat?]}]
   (let [k (str/lower-case key)]
     (cond
       (and ctrl? (= k "z")) (if shift? [:history/redo] [:history/undo])
@@ -382,7 +383,7 @@
       (#{"Delete" "Backspace"} key) [:selection/delete]
       (= key "Escape") [:selection/clear]
       (= key " ") [:space true]
-      shift? nil
+      (or shift? alt? repeat?) nil
       (= k "s") [:tool/shapes]
       (= k "h") [:hand/toggle]
       :else (when-let [tool ({"v" :select "t" :text "f" :frame "n" :sticky "l" :connection} k)]

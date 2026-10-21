@@ -52,7 +52,8 @@
     (is (= (js/Math.exp 0.04) (zoom board {:dy -4 :ctrl? true})) "a trackpad pinch stays proportional")
     (is (= [5 6] (geom/world->screen (cam board {:dy -100 :ctrl? true :sx 5 :sy 6}) [5 6])) "at the pointer")
     (is (= 1.15 (zoom hand {:dy -100})) "hand mode: the wheel zooms")
-    (is (= {:x 40 :y 0 :zoom 1} (cam hand {:dy 40 :shift? true})) "hand mode: shift still scrolls sideways"))
+    (is (= {:x 40 :y 0 :zoom 1} (cam hand {:dy 40 :shift? true})) "hand mode: shift still scrolls sideways")
+    (is (= {:x 40 :y 0 :zoom 1} (cam hand {:dx 40})) "hand mode: a sideways wheel scrolls sideways"))
   (is (= 40 (ev/wheel-px 40 0 800)) "pixels")
   (is (= 48 (ev/wheel-px 3 1 800)) "lines (Firefox)")
   (is (= 800 (ev/wheel-px 1 2 800)) "pages"))
@@ -64,6 +65,9 @@
   (is (nil? (ev/key-action {:key "T" :shift? true})) "not with shift")
   (is (= [:tool/shapes] (ev/key-action {:key "s"})))
   (is (= [:hand/toggle] (ev/key-action {:key "h"})))
+  (is (nil? (ev/key-action {:key "f" :alt? true})) "Alt+letter is the browser's")
+  (is (nil? (ev/key-action {:key "s" :repeat? true})) "holding a key does not cycle")
+  (is (nil? (ev/hand-toggle ev/initial-db)) "not on the landing page")
   (is (= [:shape :rect] ((juxt :tool :shape-kind) (:db (ev/shapes-key board)))) "S picks the shape tool")
   (is (= :star (get-in (ev/shapes-key (assoc board :tool :shape :shape-kind :rect)) [:db :shape-kind])) "again: the next shape")
   (is (= :circle (get-in (ev/shapes-key (assoc board :tool :shape :shape-kind :arrow)) [:db :shape-kind])) "round"))
@@ -118,6 +122,10 @@
   (testing "shapes take the picked shape"
     (is (= :star (:shape (first (objects-of (drag (assoc board :tool :shape :shape-kind :star) [0 0] [0 0]))))))
     (is (= :circle (get-in (ev/select-shape board :circle) [:db :shape-kind]))))
+  (testing "the tool at the press counts, not a key pressed mid-drag"
+    (let [db (:db (ev/pointer-down (assoc board :tool :sticky) (pe 0 0)))
+          fx (ev/pointer-up (:db (ev/select-tool db :select)) (pe 0 0 :t 100))]
+      (is (= [:sticky] (map :kind (objects-of fx))))))
   (testing "connection from a to b; released on nothing it cancels"
     (let [c (first (filter #(= :connection (:kind %))
                            (objects-of (drag (assoc with-objs :tool :connection) [50 50] [250 50]))))]

@@ -17,7 +17,7 @@
 (defn- on-keydown [^js e]
   (when-not (typing? e)
     (when-let [action (events/key-action {:key (.-key e) :ctrl? (or (.-ctrlKey e) (.-metaKey e))
-                                          :shift? (.-shiftKey e)})]
+                                          :shift? (.-shiftKey e) :alt? (.-altKey e) :repeat? (.-repeat e)})]
       (.preventDefault e)
       (dispatch action))))
 
