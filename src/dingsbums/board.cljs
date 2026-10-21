@@ -115,7 +115,8 @@
                   (.fill ctx)
                   (.restore ctx)
                   (when-not (= editing-id (:id o)) (text! ctx o (model/ink (:fill o)))))
-      :text (when-not (= editing-id (:id o)) (text! ctx o (:text-strong theme)))
+      :text (when-not (= editing-id (:id o))
+              (text! ctx o (if-let [b (geom/backdrop objects o)] (model/ink (:fill b)) (:text-strong theme))))
       :image (let [^js img (image (:src o))]
                (if (and (.-complete img) (pos? (.-naturalWidth img)))
                  (.drawImage ctx img x y w h)

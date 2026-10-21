@@ -113,7 +113,9 @@
                       style {:left (str (first pos) "px") :top (str (second pos) "px")
                              :width (str (* zoom (:w o)) "px") :height (str (* zoom (:h o)) "px")
                              :font-family board/font-family :font-size (str (* zoom size) "px") :padding (str (* zoom pad) "px")
-                             :color (if (= :sticky (:kind o)) (model/ink (:fill o)) "var(--text-strong)")}]
+                             :color (if-let [b (if (= :sticky (:kind o)) o (geom/backdrop objects o))]
+                                      (model/ink (:fill b))
+                                      "var(--text-strong)")}]
   [:textarea.text-editor {:style style :value draft :ref focus!
                           :on-input (fn [^js e] (dispatch [:edit/input (.. e -target -value)]))
                           :on-blur [:edit/commit] :on-keydown edit-keydown}])
