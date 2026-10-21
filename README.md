@@ -41,6 +41,12 @@ can't think of right now. That's what a whiteboard is full of.
 - Paste images and text straight onto the board.
 - An infinite canvas: scroll to pan (shift + wheel sideways), ctrl + wheel or
   the + and − buttons to zoom.
+- Hand mode (✋ beside the zoom, or H) for a mouse: drag the empty canvas to
+  pan, the wheel zooms, Shift- or Ctrl-drag draws a selection box (Shift adds
+  to the selection). This browser remembers it.
+- Keys for the tools: V select, T text, F frame, S shapes (again: the next
+  shape), N sticky note, L connection. Picking the active tool again, by key
+  or button, goes back to Select; a hint at the bottom says what to do.
 - Export a board as a `.tar` and import it again.
 - Twelve colour themes, or follow the OS light/dark setting.
 
