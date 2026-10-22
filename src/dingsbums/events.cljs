@@ -15,10 +15,10 @@
   {:route :landing :session nil :join-input "" :error nil :message nil :online? false
    :objects {} :history {:undo [] :redo []} :selection #{} :tool :select :shape-kind :rect
    :camera {:x 0 :y 0 :zoom 1} :drag nil :editing nil :space? false :img-tick 0
-   :viewport [1024 768] :theme nil :os-dark? false :hand? false})
+   :viewport [1024 768] :theme nil :os-dark? false :hand? false :loading? false})
 
 (def ^:private board-reset
-  (select-keys initial-db [:objects :history :selection :tool :camera :drag :editing :message :online?]))
+  (select-keys initial-db [:objects :history :selection :tool :camera :drag :editing :message :online? :loading?]))
 
 (def send-interval 33)
 (def hit-px 6)
@@ -87,7 +87,7 @@
       nil
 
       :else
-      {:db (merge db board-reset {:route :checking :session sid :error nil})
+      {:db (merge db board-reset {:route :checking :session sid :error nil :loading? true})
        :hammer.tubes/destroy {}
        :http {:uri (str "api/sessions/" (js/encodeURIComponent sid)) :response-format :text
               :on-success [:session/exists sid] :on-failure [:session/not-found sid]}})))
@@ -100,7 +100,7 @@
 
 (defn session-not-found [db sid & _]
   (when (= sid (:session db))
-    {:db (assoc db :route :landing :session nil :error "Session not found") :set-hash ""}))
+    {:db (assoc db :route :landing :session nil :error "Session not found" :loading? false) :set-hash ""}))
 
 (defn session-missing [db]
   {:db (merge db board-reset {:route :landing :session nil :error "Session expired or not found"})
@@ -137,7 +137,7 @@
 (defn tube-disconnected [db] {:db (assoc db :online? false)})
 
 (defn snapshot [db objects]
-  {:db (prune (assoc db :objects objects :history {:undo [] :redo []} :drag nil))})
+  {:db (prune (assoc db :objects objects :history {:undo [] :redo []} :drag nil :loading? false))})
 
 (defn remote-upsert [db objs] {:db (update db :objects ops/upsert objs)})
 (defn remote-patch [db patches] {:db (update db :objects ops/patch patches)})
@@ -367,11 +367,16 @@
         o (model/make (:objects db) kind {:x (- cx (/ w 2)) :y (- cy (/ h 2)) :w w :h h} extra)]
     (commit (assoc db :tool :select :selection #{(:id o)}) {(:id o) o})))
 
+(defn- pasteable?
+  "On a loaded board: the snapshot would drop what is pasted before it."
+  [db]
+  (and (= :board (:route db)) (not (:loading? db))))
+
 (defn paste-text [db text]
-  (when (= :board (:route db)) (place db :text 300 100 {:text text})))
+  (when (pasteable? db) (place db :text 300 100 {:text text})))
 
 (defn paste-image [db src w h]
-  (when (= :board (:route db))
+  (when (pasteable? db)
     (if (> (count src) max-image-chars)
       {:db (assoc db :message "Image too large (max 15 MB)")}
       (let [w (max 1 w) h (max 1 h) s (min 1 (/ 600 w) (/ 600 h))]

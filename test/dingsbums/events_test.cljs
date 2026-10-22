@@ -98,19 +98,22 @@
     (is (= :landing (get-in fx [:db :route])))
     (is (= {} (get-in fx [:db :objects])))
     (is (contains? fx :hammer.tubes/destroy)))
+  (is (false? (get-in (ev/route-changed (assoc board :loading? true) "") [:db :loading?])) "left while loading")
   (let [fx (ev/route-changed ev/initial-db " abc ")]
     (is (= [:checking "abc"] ((juxt :route :session) (:db fx))))
+    (is (true? (get-in fx [:db :loading?])) "the loading screen shows until the snapshot")
     (is (= "api/sessions/abc" (get-in fx [:http :uri])) "relative: works under a proxy's path prefix")
     (is (= [:session/exists "abc"] (get-in fx [:http :on-success]))))
   (is (nil? (ev/route-changed board "s1")) "already on that board")
   (is (nil? (ev/session-exists (assoc board :session "other") "s1")) "stale answer for a session we left")
   (is (= {:url "ws://localhost/ws" :params {:session "s1"}}
          (select-keys (:hammer.tubes/create (ev/session-exists (assoc board :route :checking) "s1")) [:url :params])))
-  (let [fx (ev/session-not-found (assoc board :route :checking) "s1")]
-    (is (= [:landing "Session not found"] ((juxt :route :error) (:db fx))))
+  (let [fx (ev/session-not-found (assoc board :route :checking :loading? true) "s1")]
+    (is (= [:landing "Session not found" false] ((juxt :route :error :loading?) (:db fx))))
     (is (= "" (:set-hash fx))))
   (let [fx (ev/session-missing with-objs)]
     (is (= [:landing "Session expired or not found" {}] ((juxt :route :error :objects) (:db fx))))
+    (is (false? (get-in (ev/session-missing (assoc board :loading? true)) [:db :loading?])))
     (is (contains? fx :hammer.tubes/destroy)))
   (is (= "x" (:set-hash (ev/landing-join (assoc ev/initial-db :join-input " x ")))))
   (is (nil? (ev/landing-join (assoc ev/initial-db :join-input "  "))))
@@ -279,6 +282,7 @@
     (is (= {"b" shape} (:objects db2)))
     (is (= #{"b"} (:selection db2)))
     (is (= {:undo [] :redo []} (:history db2)))
+    (is (false? (:loading? (:db (ev/snapshot (assoc db :loading? true) {})))) "the snapshot ends loading")
     (is (= #{"b"} (:selection (:db (ev/remote-delete db ["a"])))))
     (is (= 5 (get-in (ev/remote-upsert db [(assoc sticky :x 5)]) [:db :objects "a" :x])))
     (is (nil? (get-in (ev/remote-delete (assoc db :editing {:id "a" :draft "x"}) ["a"]) [:db :editing]))
@@ -291,7 +295,9 @@
     (is (= [600 150] [(:w o) (:h o)]) "scaled to fit 600×600"))
   (is (= "Image too large (max 15 MB)"
          (get-in (ev/paste-image board (apply str (repeat 15000001 "a")) 10 10) [:db :message])))
-  (is (nil? (ev/paste-text ev/initial-db "x")) "ignored on the landing screen"))
+  (is (nil? (ev/paste-text ev/initial-db "x")) "ignored on the landing screen")
+  (is (nil? (ev/paste-text (assoc board :loading? true) "x")) "ignored until the snapshot, which would drop it")
+  (is (nil? (ev/paste-image (assoc board :loading? true) "data:image/png;base64,AA" 10 10))))
 
 ;; tube wiring, through hammer with a fake WebSocket
 
