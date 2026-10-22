@@ -2,7 +2,8 @@
   "Event handlers. Each is a plain fn (db & args) → effect map (nil: nothing),
   registered at the bottom, so tests call them directly. Local mutations go
   through model/commit and send their ops with :tube/send."
-  (:require [clojure.string :as str]
+  (:require [cljs.reader :as reader]
+            [clojure.string :as str]
             [hammer.core :refer [reg-event reg-fx dispatch]]
             [hammer.http]
             [hammer.tubes :as tubes]
@@ -383,6 +384,100 @@
       (let [w (max 1 w) h (max 1 h) s (min 1 (/ 600 w) (/ 600 h))]
         (place db :image (* w s) (* h s) {:src src})))))
 
+;; copy and paste of board objects
+
+(def clipboard-type
+  "The clipboard type copied objects travel in; text/plain gets their text."
+  "application/x-dingsbums")
+(def paste-offset-px 20)
+
+(defn copy-payload
+  "{:data :text} for copying the selection, nil when nothing is selected: the
+  selected objects and the connections between them. A lone image adds :image,
+  its src."
+  [db]
+  (let [objects (:objects db)
+        ids (into #{} (remove #(= :connection (:kind (get objects %)))) (:selection db))
+        os (->> (ops/cascade-ids objects ids)
+                (keep objects)
+                (filter #(or (not= :connection (:kind %)) (and (ids (:from %)) (ids (:to %)))))
+                (sort-by :z))]
+    (when (and (= :board (:route db)) (seq os))
+      (cond-> {:data (pr-str {:dingsbums/objects (vec os)})
+               :text (str/join "\n\n" (keep #(not-empty (:text %)) os))}
+        (and (= 1 (count os)) (= :image (:kind (first os)))) (assoc :image (:src (first os)))))))
+
+(defn- inert-template
+  "A <template>: HTML put into it loads no images and runs nothing."
+  [] (js/document.createElement "template"))
+
+(defn copy-html
+  "HTML for the system clipboard: the picture src, with the copied data for dingsbums."
+  [data src]
+  (let [img (.createElement (.. (inert-template) -content -ownerDocument) "img")]
+    (.setAttribute img "src" src)
+    (.setAttribute img "data-dingsbums" data)
+    (.-outerHTML img)))
+
+(defn html-copied
+  "The copied data in clipboard HTML from copy-html, else nil."
+  [html]
+  (when (string? html)
+    (let [t (inert-template)]
+      (set! (.-innerHTML t) html)
+      (some-> (.. t -content (querySelector "[data-dingsbums]")) (.getAttribute "data-dingsbums")))))
+
+(defn read-copied
+  "The valid objects in copied clipboard data, nil for none or anything else."
+  [s]
+  (let [v (try (reader/read-string s) (catch :default _ nil))
+        os (when (map? v) (:dingsbums/objects v))]
+    (when (sequential? os) (not-empty (filterv ops/valid-object? os)))))
+
+(defn- overlaps? [a b]
+  (and (< (:x a) (+ (:x b) (:w b))) (< (:x b) (+ (:x a) (:w a)))
+       (< (:y a) (+ (:y b) (:h b))) (< (:y b) (+ (:y a) (:h a)))))
+
+(defn- cascade-offset
+  "The first of step, 2 step, … that puts no copy of os on an object of its kind."
+  [objects os step]
+  (let [on? (fn [d o] (some #(and (= (:kind o) (:kind %))
+                                  (< (abs (- (+ (:x o) d) (:x %))) 1) (< (abs (- (+ (:y o) d) (:y %))) 1))
+                            (vals objects)))]
+    (first (remove (fn [d] (some #(on? d %) os)) (iterate #(+ % step) step)))))
+
+(defn paste-objects
+  "Pastes copied objects as new ones: fresh ids and groups, unlocked, on top,
+  connections only between pasted objects. Beside the originals while they are
+  in view (pasting again steps further), else in the middle of the view."
+  [db os]
+  (when (= :board (:route db))
+    (let [shapes (filter #(and (not= :connection (:kind %)) (every? (fn [k] (js/isFinite (k %))) [:x :y :w :h])) os)
+          ids (set (map :id shapes))
+          lines (filter #(and (= :connection (:kind %)) (ids (:from %)) (ids (:to %))) os)]
+      (cond
+        (empty? shapes) nil
+        (some #(> (count (:src %)) max-image-chars) shapes) {:db (assoc db :message "Image too large (max 15 MB)")}
+        :else
+        (let [{:keys [camera viewport objects]} db
+              [x0 y0] (geom/screen->world camera [0 0])
+              [x1 y1] (geom/screen->world camera viewport)
+              b (geom/bounds shapes)
+              [dx dy] (if (overlaps? b {:x x0 :y y0 :w (- x1 x0) :h (- y1 y0)})
+                        (let [d (cascade-offset objects shapes (/ paste-offset-px (:zoom camera)))] [d d])
+                        (let [[cx cy] (geom/center b)] [(- (/ (+ x0 x1) 2) cx) (- (/ (+ y0 y1) 2) cy)]))
+              fresh (into {} (map (fn [k] [k (model/new-id)])) (concat ids (keep :group (concat shapes lines))))
+              z (model/next-z objects)
+              copies (map-indexed
+                      (fn [i o]
+                        (cond-> (-> o (dissoc :locked?) (assoc :id (or (fresh (:id o)) (model/new-id)) :z (+ z i)))
+                          (:x o) (assoc :x (+ (:x o) dx) :y (+ (:y o) dy))
+                          (:group o) (update :group fresh)
+                          (:from o) (assoc :from (fresh (:from o)) :to (fresh (:to o)))))
+                      (sort-by :z (concat shapes lines)))]
+          (commit (assoc db :tool :select :selection (set (map :id copies)))
+                  (into {} (map (juxt :id identity)) copies)))))))
+
 ;; import
 
 (defn import-file [db file]
@@ -465,6 +560,7 @@
                 :history/redo history-redo
                 :paste/text paste-text
                 :paste/image paste-image
+                :paste/objects paste-objects
                 :import/file import-file
                 :import/done import-done
                 :import/failed import-failed}]
