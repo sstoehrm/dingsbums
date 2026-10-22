@@ -1,0 +1,12 @@
+# Changes here can weaken CI, the release or the vulnerability gate.
+/.github/            @sstoehrm
+/.clj-kondo/         @sstoehrm
+/.vuln-ignore.yaml   @sstoehrm
+/renovate.json       @sstoehrm
+/install.sh          @sstoehrm
+/install-service.sh  @sstoehrm
+/bb.edn              @sstoehrm
+/deps.edn            @sstoehrm
+/package.json        @sstoehrm
+/package-lock.json   @sstoehrm
+/SECURITY.md         @sstoehrm

@@ -130,13 +130,33 @@ Tests:
     bb jar:smoke      # builds the release jar and runs it the way bbin does
     bb dist           # the offline service folder (downloads a static bb)
 
+CI also lints with clj-kondo and runs the vulnerability gate on every PR,
+every push to main and daily, see
+[.github/actions/vuln-gate](.github/actions/vuln-gate/README.md).
+
 Releasing: `bb release vX.Y.Z` on a clean main that matches origin tags and
 pushes; the tag's workflow tests, builds `dingsbums.jar` and publishes the
 GitHub release.
 
+## Privacy
+
+dingsbums has no accounts, analytics, cookies or connection logs. A board
+holds whatever its participants put on it, only in the server's memory, until
+the session ends (15 minutes after the last participant leaves). Your browser
+keeps your theme and hand-mode choice in its local storage; nothing else is
+stored. Whoever runs the server, and any reverse proxy in front of it, can log
+visitors' IP addresses; that is their setup, not dingsbums's.
+
+## Security
+
+Report vulnerabilities privately, see [SECURITY.md](SECURITY.md).
+
 ## License
 
-MIT, see [LICENSE](LICENSE). Third-party components and palettes:
+The code is MIT, see [LICENSE](LICENSE). The logo and icons
+(`public/icons/`) and the docs in `docs/` (the demo included) are
+[CC-BY-4.0](LICENSES/CC-BY-4.0.txt); [REUSE.toml](REUSE.toml) maps the paths.
+Third-party components and palettes:
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ## Tools used

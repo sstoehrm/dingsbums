@@ -1,7 +1,10 @@
 # Third-party notices
 
-dingsbums itself is MIT-licensed (see LICENSE). The release jar and the
-frontend bundle (`public/js/main.js`) also carry the components below.
+dingsbums's code is MIT-licensed (see LICENSE). Its logo and icons
+(`public/icons/`, also in the release jar) and its docs are Copyright (c) 2026
+Sören Stöhrmann under CC-BY-4.0 (https://creativecommons.org/licenses/by/4.0/).
+The release jar and the frontend bundle (`public/js/main.js`) also carry the
+components below.
 
 ## hammer (compiled into `public/js/main.js`)
 

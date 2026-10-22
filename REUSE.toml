@@ -1,0 +1,8 @@
+version = 1
+
+# Everything else (code, README and the other repo files) is MIT, see LICENSE.
+
+[[annotations]]
+path = ["docs/**", "public/icons/**"]
+SPDX-FileCopyrightText = "2026 Sören Stöhrmann"
+SPDX-License-Identifier = "CC-BY-4.0"

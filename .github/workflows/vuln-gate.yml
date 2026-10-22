@@ -1,0 +1,77 @@
+name: Vulnerability gate
+
+# SBOMs for this repo's stacks, scanned and gated by .github/actions/vuln-gate.
+# Only the "SBOM" steps are specific to this repo; see .github/actions/vuln-gate/README.md.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # KEV and EPSS change daily without any code change
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# a scheduled run and a push to main must not cancel each other
+concurrency:
+  group: vuln-gate-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+env:
+  # the README's minimum
+  JAVA_VERSION: 25
+  # renovate: datasource=node-version depName=node versioning=node
+  NODE_VERSION: 24.21.0
+  # renovate: datasource=github-tags depName=clojure/brew-install versioning=loose
+  CLOJURE_CLI_VERSION: 1.12.6.1673
+
+jobs:
+  vuln-gate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: DeLaGuardo/setup-clojure@6d46099eae24853c33c0482f2bb54edf4f1a4c74 # 13.7.0
+        with:
+          cli: ${{ env.CLOJURE_CLI_VERSION }}
+
+      # same key as ci.yml, so both workflows share the resolved deps
+      - name: Cache Maven and git deps
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.gitlibs
+          key: deps-${{ hashFiles('deps.edn', 'shadow-cljs.edn', 'bb.edn') }}
+
+      # ---- per repo: one CycloneDX JSON SBOM per stack
+      # bb.edn has no :deps (http-kit and the rest come with bb); with deps, add a
+      # sbom-classpath step with classpath: bb -e '(println (babashka.classpath/get-classpath))'
+
+      - name: SBOM (npm)
+        run: npx --yes @cyclonedx/cyclonedx-npm@6.0.1 --package-lock-only --output-format JSON --output-file sbom/npm.cdx.json
+
+      - name: SBOM (deps.edn)
+        uses: ./.github/actions/sbom-classpath
+        with:
+          classpath: clojure -Spath
+          output: sbom/deps.cdx.json
+
+      # ---- shared
+      - uses: ./.github/actions/vuln-gate
+        with:
+          sboms: sbom/*.cdx.json
