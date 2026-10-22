@@ -103,7 +103,7 @@
                             pos (when b (geom/world->screen cam [(+ (:x b) (/ (:w b) 2)) (:y b)]))
                             show? (boolean (and pos (nil? drag) (nil? editing)))
                             cx (if pos (first pos) 0)
-                            top (if pos (max 8 (- (second pos) 48)) 0)
+                            top (if pos (max 8 (- (second pos) 56)) 0)
                             colors (cond
                                      (and (seq os) (every? #(= :shape (:kind %)) os)) model/swatches
                                      (and (seq os) (every? #(#{:shape :sticky} (:kind %)) os)) (rest model/swatches))
