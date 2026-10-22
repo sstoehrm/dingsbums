@@ -35,6 +35,20 @@
   (is (= "f" (:id (g/hit objs [170 70] 3))) "too far from the line")
   (is (nil? (g/hit objs [600 600] 3))))
 
+(deftest backdrop-is-the-filled-object-under-a-text
+  (let [sticky {:id "s" :kind :sticky :x 0 :y 0 :w 200 :h 200 :z 1}
+        hollow {:id "h" :kind :shape :shape :rect :x 0 :y 0 :w 200 :h 200 :z 2}
+        circle {:id "c" :kind :shape :shape :circle :x 0 :y 0 :w 200 :h 200 :z 3 :fill "#000000"}
+        text {:id "t" :kind :text :x 0 :y 0 :w 40 :h 40 :z 5}
+        os (fn [& xs] (into {} (map (juxt :id identity)) xs))]
+    (is (= "s" (:id (g/backdrop (os sticky text) text))))
+    (is (= "s" (:id (g/backdrop (os sticky hollow text) text))) "an unfilled shape is see-through")
+    (is (= "s" (:id (g/backdrop (os sticky circle text) text))) "center in the circle's bbox corner misses it")
+    (is (= "c" (:id (g/backdrop (os sticky circle (assoc text :x 80 :y 80)) (assoc text :x 80 :y 80)))))
+    (is (nil? (g/backdrop (os (assoc sticky :z 9) text) text)) "drawn above the text")
+    (is (nil? (g/backdrop (os sticky (assoc text :x 500)) (assoc text :x 500))) "off the sticky")
+    (is (nil? (g/backdrop (os {:id "f" :kind :frame :x 0 :y 0 :w 300 :h 300 :z 0} text) text)) "frames are unfilled")))
+
 (deftest handles-and-resize
   (let [o {:x 0 :y 0 :w 100 :h 50}]
     (is (= :se (g/handle-at o [102 49] 4)))

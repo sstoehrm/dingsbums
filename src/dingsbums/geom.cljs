@@ -113,6 +113,19 @@
   [objects p tol]
   (->> (draw-order objects) reverse (filter #(hit? objects % p tol)) first))
 
+(defn- filled? [o] (or (= :sticky (:kind o)) (and (= :shape (:kind o)) (:fill o))))
+
+(defn backdrop
+  "The topmost sticky or filled shape drawn below o at its center, or nil:
+  what o's text is read against. Images count as see-through."
+  [objects o]
+  (let [p (center o)]
+    (->> (draw-order objects)
+         (take-while #(not= (:id o) (:id %)))
+         reverse
+         (filter #(and (filled? %) (hit? objects % p 0)))
+         first)))
+
 (defn ids-in-rect
   "Ids of the objects lying fully inside rect."
   [objects rect]
