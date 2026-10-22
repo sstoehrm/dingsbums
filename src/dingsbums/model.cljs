@@ -18,6 +18,16 @@
         brightness (/ (+ (* 299 (bit-shift-right c 16)) (* 587 (bit-and (bit-shift-right c 8) 255)) (* 114 (bit-and c 255)))
                       1000)]
     (if (< brightness 128) "#fff" "#222")))
+
+(defn- rgb [hex]
+  (let [c (js/parseInt (subs (str hex) 1) 16)]
+    (when-not (js/isNaN c) [(bit-shift-right c 16) (bit-and (bit-shift-right c 8) 255) (bit-and c 255)])))
+
+(defn blends?
+  "The #rrggbb colours a and b are too close to tell apart (a sticky on the board)."
+  [a b]
+  (let [ca (rgb a) cb (rgb b)]
+    (boolean (and ca cb (< (js/Math.hypot (- (ca 0) (cb 0)) (- (ca 1) (cb 1)) (- (ca 2) (cb 2))) 48)))))
 (def history-cap 100)
 (def text-kinds #{:text :sticky})
 

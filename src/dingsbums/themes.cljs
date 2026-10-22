@@ -11,93 +11,93 @@
 
 (def css-keys
   "The keys mirrored into CSS custom properties, as --<key>."
-  [:bg :panel :panel-border :panel-divider :text :text-strong :text-muted :accent :on-accent])
+  [:bg :panel :panel-border :text :text-strong :text-muted :accent])
 
 (def themes
   "Name -> theme. Canvas: :text-strong (lines and text objects), :sub
   (frames), :accent and :panel (selection), :text-dim (locked selection),
   :hover-plain (loading image)."
   {:parchment
-   {:bg "#f6f1e6" :panel "#ffffff" :panel-border "#cdd5c8" :panel-divider "#e4e8df"
+   {:bg "#f6f1e6" :panel "#ffffff" :panel-border "#cdd5c8"
     :text "#23241f" :text-strong "#23241f" :text-muted "#63675e" :text-dim "#8a8d84"
-    :hover-plain "#eee8da" :accent "#41a1cf" :on-accent "#ffffff"
+    :hover-plain "#eee8da" :accent "#41a1cf"
     :sub "#b8c1b2"}
 
    :light
-   {:bg "#fafafa" :panel "#fff" :panel-border "#ddd" :panel-divider "#eee"
+   {:bg "#fafafa" :panel "#fff" :panel-border "#ddd"
     :text "#374151" :text-strong "#000" :text-muted "#6b7280" :text-dim "#9ca3af"
-    :hover-plain "#f0f0f0" :accent "#2563eb" :on-accent "#fff"
+    :hover-plain "#f0f0f0" :accent "#2563eb"
     :sub "#888"}
 
    :dark
-   {:bg "#111827" :panel "#1f2937" :panel-border "#374151" :panel-divider "#374151"
+   {:bg "#111827" :panel "#1f2937" :panel-border "#374151"
     :text "#d1d5db" :text-strong "#fff" :text-muted "#9ca3af" :text-dim "#6b7280"
-    :hover-plain "#374151" :accent "#60a5fa" :on-accent "#fff"
+    :hover-plain "#374151" :accent "#60a5fa"
     :sub "#9ca3af"}
 
    :print
-   {:bg "#ffffff" :panel "#ffffff" :panel-border "#cccccc" :panel-divider "#e5e5e5"
+   {:bg "#ffffff" :panel "#ffffff" :panel-border "#cccccc"
     :text "#222222" :text-strong "#000000" :text-muted "#555555" :text-dim "#888888"
-    :hover-plain "#eeeeee" :accent "#000000" :on-accent "#ffffff"
+    :hover-plain "#eeeeee" :accent "#000000"
     :sub "#666666"}
 
    :high-contrast
-   {:bg "#ffffff" :panel "#ffffff" :panel-border "#000000" :panel-divider "#000000"
+   {:bg "#ffffff" :panel "#ffffff" :panel-border "#000000"
     :text "#000000" :text-strong "#000000" :text-muted "#333333" :text-dim "#555555"
-    :hover-plain "#e6e6e6" :accent "#0040ff" :on-accent "#ffffff"
+    :hover-plain "#e6e6e6" :accent "#0040ff"
     :sub "#333333"}
 
    :blueprint
-   {:bg "#0d3b66" :panel "#11487a" :panel-border "#3d6f9e" :panel-divider "#2a5d8c"
+   {:bg "#0d3b66" :panel "#11487a" :panel-border "#3d6f9e"
     :text "#d7ecff" :text-strong "#ffffff" :text-muted "#a9cbe8" :text-dim "#7fa7cc"
-    :hover-plain "#1a5a91" :accent "#7fdbff" :on-accent "#0d3b66"
+    :hover-plain "#1a5a91" :accent "#7fdbff"
     :sub "#a9cbe8"}
 
    :paper
-   {:bg "#f7f1e3" :panel "#fbf7ee" :panel-border "#d9ccb0" :panel-divider "#e8dfca"
+   {:bg "#f7f1e3" :panel "#fbf7ee" :panel-border "#d9ccb0"
     :text "#4a3b2a" :text-strong "#2b1f12" :text-muted "#7a6650" :text-dim "#a39075"
-    :hover-plain "#ede3cf" :accent "#8b4513" :on-accent "#ffffff"
+    :hover-plain "#ede3cf" :accent "#8b4513"
     :sub "#8a7558"}
 
    ;; Solarized, © 2011 Ethan Schoonover (MIT)
    :solarized-light
-   {:bg "#fdf6e3" :panel "#fdf6e3" :panel-border "#93a1a1" :panel-divider "#eee8d5"
+   {:bg "#fdf6e3" :panel "#fdf6e3" :panel-border "#93a1a1"
     :text "#586e75" :text-strong "#073642" :text-muted "#657b83" :text-dim "#93a1a1"
-    :hover-plain "#eee8d5" :accent "#268bd2" :on-accent "#ffffff"
+    :hover-plain "#eee8d5" :accent "#268bd2"
     :sub "#657b83"}
 
    :solarized-dark
-   {:bg "#002b36" :panel "#073642" :panel-border "#586e75" :panel-divider "#0d4452"
+   {:bg "#002b36" :panel "#073642" :panel-border "#586e75"
     :text "#93a1a1" :text-strong "#eee8d5" :text-muted "#839496" :text-dim "#586e75"
-    :hover-plain "#0d4452" :accent "#268bd2" :on-accent "#002b36"
+    :hover-plain "#0d4452" :accent "#268bd2"
     :sub "#839496"}
 
    ;; Nord, © 2016-present Sven Greb (MIT)
    :nord
-   {:bg "#2e3440" :panel "#3b4252" :panel-border "#4c566a" :panel-divider "#434c5e"
+   {:bg "#2e3440" :panel "#3b4252" :panel-border "#4c566a"
     :text "#d8dee9" :text-strong "#eceff4" :text-muted "#a6b0c3" :text-dim "#7b88a1"
-    :hover-plain "#434c5e" :accent "#88c0d0" :on-accent "#2e3440"
+    :hover-plain "#434c5e" :accent "#88c0d0"
     :sub "#a6b0c3"}
 
    ;; Dracula, © 2023 Dracula Theme (MIT)
    :dracula
-   {:bg "#282a36" :panel "#343746" :panel-border "#44475a" :panel-divider "#44475a"
+   {:bg "#282a36" :panel "#343746" :panel-border "#44475a"
     :text "#f8f8f2" :text-strong "#ffffff" :text-muted "#b6b9cc" :text-dim "#6272a4"
-    :hover-plain "#44475a" :accent "#ff79c6" :on-accent "#282a36"
+    :hover-plain "#44475a" :accent "#ff79c6"
     :sub "#b6b9cc"}
 
    ;; carbonfox from nightfox.nvim, © 2021 James Simpson (MIT)
    :carbonfox
-   {:bg "#161616" :panel "#202020" :panel-border "#353535" :panel-divider "#2a2a2a"
+   {:bg "#161616" :panel "#202020" :panel-border "#353535"
     :text "#f2f4f8" :text-strong "#ffffff" :text-muted "#b6b8bb" :text-dim "#7b7c7e"
-    :hover-plain "#2a2a2a" :accent "#78a9ff" :on-accent "#161616"
+    :hover-plain "#2a2a2a" :accent "#78a9ff"
     :sub "#b6b8bb"}
 
    ;; Atom One Dark, © GitHub Inc. (MIT)
    :one-dark
-   {:bg "#282c34" :panel "#21252b" :panel-border "#3e4451" :panel-divider "#333842"
+   {:bg "#282c34" :panel "#21252b" :panel-border "#3e4451"
     :text "#abb2bf" :text-strong "#d7dae0" :text-muted "#828997" :text-dim "#5c6370"
-    :hover-plain "#333842" :accent "#61afef" :on-accent "#282c34"
+    :hover-plain "#333842" :accent "#61afef"
     :sub "#828997"}})
 
 (defn pref?

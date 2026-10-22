@@ -48,7 +48,7 @@ can't think of right now. That's what a whiteboard is full of.
   localhost; elsewhere the browser keeps copies within dingsbums).
 - An infinite canvas: scroll to pan (shift + wheel sideways), ctrl + wheel or
   the + and − buttons to zoom.
-- Hand mode (✋ beside the zoom, or H) for a mouse: drag the empty canvas to
+- Hand mode (the hand beside the zoom, or H) for a mouse: drag the empty canvas to
   pan, the wheel zooms, Shift- or Ctrl-drag draws a selection box (Shift adds
   to the selection). This browser remembers it.
 - Keys for the tools: V select, T text, F frame, S shapes (again: the next
