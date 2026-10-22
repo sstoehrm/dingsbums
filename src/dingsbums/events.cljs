@@ -507,6 +507,8 @@
       (= key "Escape") [:selection/clear]
       (= key " ") [:space true]
       (or alt? repeat?) nil
+      (= key "Home") [:selection/layer :front]
+      (= key "End") [:selection/layer :back]
       (= k "s") [:tool/shapes]
       (= k "h") [:hand/toggle]
       :else (when-let [tool ({"v" :select "t" :text "f" :frame "n" :sticky "l" :connection} k)]
