@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 env:
   # the README's minimum
   JAVA_VERSION: 25
@@ -17,6 +20,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
@@ -41,6 +46,21 @@ jobs:
             ~/.m2/repository
             ~/.gitlibs
           key: deps-${{ hashFiles('deps.edn', 'shadow-cljs.edn', 'bb.edn') }}
+
+      - name: Lint (clj-kondo)
+        env:
+          CLJ_KONDO_VERSION: 2026.08.04
+          CLJ_KONDO_SHA256: dd3bb3ec91bcb838e9bbefc9ba9968b69a8fe2a625fa67e8b0485605604e61d1
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fsSLo clj-kondo.zip "https://github.com/clj-kondo/clj-kondo/releases/download/v${CLJ_KONDO_VERSION}/clj-kondo-${CLJ_KONDO_VERSION}-linux-amd64.zip"
+          echo "$CLJ_KONDO_SHA256  clj-kondo.zip" | sha256sum -c -
+          unzip -q clj-kondo.zip clj-kondo
+          cd "$GITHUB_WORKSPACE"
+          "$RUNNER_TEMP/clj-kondo" --lint src test .github/actions/vuln-gate .clj-kondo/hammer
+
+      - name: Vulnerability gate tests
+        run: bb .github/actions/vuln-gate/gate_test.clj
 
       - run: npm ci
 

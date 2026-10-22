@@ -1,0 +1,6 @@
+;; hammer's component macros, as clj-kondo should read them (see hammer/kondo.clj)
+{:hooks {:macroexpand {hammer.core/defc hammer.kondo/defc
+                       hammer.canvas/defdraw hammer.kondo/defdraw
+                       hammer.canvas/defloop hammer.kondo/defdraw
+                       hammer.gl/defdraw hammer.kondo/defdraw
+                       hammer.gl/defloop hammer.kondo/defdraw}}}

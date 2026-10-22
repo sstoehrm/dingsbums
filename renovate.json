@@ -1,0 +1,16 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests", "schedule:weekly"],
+  "packageRules": [
+    {
+      "description": "Minor and patch updates in one PR",
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "minor and patch"
+    },
+    {
+      "description": "shadow-cljs comes from npm (the build tool) and deps.edn (its Clojure side): versions must match",
+      "matchPackageNames": ["shadow-cljs", "thheller:shadow-cljs"],
+      "groupName": "shadow-cljs"
+    }
+  ]
+}
