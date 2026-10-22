@@ -56,6 +56,14 @@
     background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 8px 12px;
     box-shadow: 0 1px 4px var(--shadow); font-size: 13px; text-align: center; pointer-events: none; }
   .swatch { width: 22px; height: 22px; padding: 0; border-radius: 50%; }
+  .sel-toolbar .menu { position: relative; display: flex; }
+  .sel-toolbar .swatch.active { outline: 2px solid var(--accent); outline-offset: 2px; border-color: var(--panel-border); }
+  .sel-menu { position: absolute; top: calc(100% + 12px); left: -7px; display: flex; gap: 6px;
+    background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 6px;
+    box-shadow: 0 1px 4px var(--shadow); }
+  .sel-menu.column { flex-direction: column; align-items: stretch; }
+  .sel-menu.column button { display: flex; gap: 8px; white-space: nowrap; text-align: left; }
+  .sel-menu kbd { margin-left: auto; padding-left: 12px; font: inherit; font-size: 12px; color: var(--text-muted); }
   .text-editor { position: absolute; z-index: 3; margin: 0; border: none; outline: 2px solid var(--accent);
     background: transparent; resize: none; overflow: hidden; line-height: 1.2; }
 </style>

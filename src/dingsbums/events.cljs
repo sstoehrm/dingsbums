@@ -16,7 +16,7 @@
   {:route :landing :session nil :join-input "" :error nil :message nil :online? false
    :objects {} :history {:undo [] :redo []} :selection #{} :tool :select :shape-kind :rect
    :camera {:x 0 :y 0 :zoom 1} :drag nil :editing nil :space? false :img-tick 0
-   :viewport [1024 768] :theme nil :os-dark? false :hand? false :loading? false})
+   :viewport [1024 768] :theme nil :os-dark? false :hand? false :loading? false :sel-menu nil})
 
 (def ^:private board-reset
   (select-keys initial-db [:objects :history :selection :tool :camera :drag :editing :message :online? :loading?]))
@@ -254,7 +254,7 @@
 
 (defn pointer-down [db {:keys [button] :as e}]
   (when (<= button 1)
-    (let [[db ops] (finish-edit (assoc db :message nil))]
+    (let [[db ops] (finish-edit (assoc db :message nil :sel-menu nil))]
       (with-ops (press db e (world db e)) ops))))
 
 (defn- live-update
@@ -352,6 +352,16 @@
 (defn selection-group [db] (change-selection db model/group-changes))
 (defn selection-ungroup [db] (change-selection db model/ungroup-changes))
 (defn selection-layer [db move] (change-selection db model/layer-changes move))
+
+(defn open-menu
+  "The selection toolbar's open menu (:fill or :layer), or nil. It belongs to the
+  selection it was opened for, so another selection closes it."
+  [sel-menu sel]
+  (when (= sel (:for sel-menu)) (:menu sel-menu)))
+
+(defn menu-toggle [db menu]
+  {:db (assoc db :sel-menu (when-not (= menu (open-menu (:sel-menu db) (:selection db)))
+                             {:menu menu :for (:selection db)}))})
 (defn selection-delete [db] (change-selection db model/delete-changes))
 (defn selection-clear [db] {:db (assoc db :selection #{} :tool :select)})
 
@@ -556,6 +566,7 @@
                 :selection/group selection-group
                 :selection/ungroup selection-ungroup
                 :selection/layer selection-layer
+                :selection/menu menu-toggle
                 :selection/delete selection-delete
                 :selection/clear selection-clear
                 :history/undo history-undo

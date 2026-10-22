@@ -81,27 +81,47 @@
    [:button {:title "Zoom in" :on-click [:camera/zoom-step 1.25]} "+"]])
 
 (def ^:private layer-moves
-  [[:front "Bring to front (Home)" "⤒"] [:forward "Bring forward" "↑"] [:backward "Send backward" "↓"] [:back "Send to back (End)" "⤓"]])
+  [[:front "Bring to front" "⤒" "Home"] [:forward "Bring forward" "↑"] [:backward "Send backward" "↓"]
+   [:back "Send to back" "⤓" "End"]])
+
+(def ^:private mixed-fill "conic-gradient(#e57373, #fff176, #81c784, #64b5f6, #ba68c8, #e57373)")
 
 (defc selection-toolbar [] [sel [:selection] objects [:objects] cam [:camera] drag [:drag] editing [:editing]
+                            sel-menu [:sel-menu] viewport [:viewport]
+                            vw (first viewport)
+                            menu (events/open-menu sel-menu sel)
                             os (vec (keep #(get objects %) sel))
                             b (geom/bounds (keep #(geom/obj-rect objects %) os))
-                            pos (when b (geom/world->screen cam [(:x b) (:y b)]))
+                            pos (when b (geom/world->screen cam [(+ (:x b) (/ (:w b) 2)) (:y b)]))
                             show? (boolean (and pos (nil? drag) (nil? editing)))
-                            left (if pos (max 8 (first pos)) 0)
+                            cx (if pos (first pos) 0)
                             top (if pos (max 8 (- (second pos) 48)) 0)
                             colors (cond
                                      (and (seq os) (every? #(= :shape (:kind %)) os)) model/swatches
                                      (and (seq os) (every? #(#{:shape :sticky} (:kind %)) os)) (rest model/swatches))
+                            fills (set (map :fill os))
                             locked? (boolean (and (seq os) (every? :locked? os)))
                             groupable? (>= (count (remove #(= :connection (:kind %)) os)) 2)
                             grouped? (boolean (some :group os))]
-  [:div.sel-toolbar {:hidden (not show?) :style {:left (str left "px") :top (str top "px")}}
-   (for [c colors]
-     ^{:key (str c)} [:button.swatch {:title (or c "No fill") :style {:background-color (or c "transparent")}
-                                      :on-click [:selection/fill c]}])
-   (for [[k label icon] layer-moves]
-     ^{:key k} [:button {:hidden locked? :title label :on-click [:selection/layer k]} icon])
+  ;; centered over the selection, kept 8px inside the viewport
+  [:div.sel-toolbar {:hidden (not show?)
+                     :style {:left (str cx "px") :top (str top "px")
+                             :transform (str "translateX(clamp(" (- 8 cx) "px, -50%, calc(" (- vw 8 cx) "px - 100%)))")}}
+   [:span.menu {:hidden (empty? colors)}
+    [:button.swatch {:title "Fill" :class (when (= menu :fill) "active")
+                     :style {:background (cond (< 1 (count fills)) mixed-fill (first fills) (first fills) :else "transparent")}
+                     :on-click [:selection/menu :fill]}]
+    (when (= menu :fill)
+      [:div.sel-menu
+       (for [c colors]
+         ^{:key (str c)} [:button.swatch {:title (or c "No fill") :style {:background-color (or c "transparent")}
+                                          :on-click [:selection/fill c]}])])]
+   [:span.menu {:hidden locked?}
+    [:button {:title "Order" :class (when (= menu :layer) "active") :on-click [:selection/menu :layer]} "Order ▾"]
+    (when (= menu :layer)
+      [:div.sel-menu.column
+       (for [[k label icon key] layer-moves]
+         ^{:key k} [:button {:on-click [:selection/layer k]} [:span icon] [:span label] [:kbd key]])])]
    [:button {:on-click [:selection/lock (not locked?)]} (if locked? "Unlock" "Lock")]
    [:button {:hidden (not groupable?) :on-click [:selection/group]} "Group"]
    [:button {:hidden (not grouped?) :on-click [:selection/ungroup]} "Ungroup"]

@@ -256,6 +256,17 @@
   (testing "an aborted new text object is removed"
     (is (empty? (objects-of (ev/edit-cancel (:db (drag (assoc board :tool :text) [0 0] [0 0]))))))))
 
+(deftest selection-menus
+  (let [db (assoc with-objs :selection #{"a"})
+        opened (:db (ev/menu-toggle db :fill))
+        open (fn [db] (ev/open-menu (:sel-menu db) (:selection db)))]
+    (is (= :fill (open opened)))
+    (is (nil? (open (:db (ev/menu-toggle opened :fill)))) "the same button closes it")
+    (is (= :layer (open (:db (ev/menu-toggle opened :layer)))) "the other button switches")
+    (is (nil? (open (assoc opened :selection #{"b"}))) "another selection: closed")
+    (is (= :fill (open (:db (ev/selection-fill opened "#e57373")))) "stays open for more picks")
+    (is (nil? (open (:db (ev/pointer-down opened (pe 500 500))))) "pressing the board closes it")))
+
 (deftest selection-actions
   (let [db (assoc with-objs :selection #{"a" "b"})]
     (let [os (objects-of (ev/selection-group db))]
