@@ -172,7 +172,7 @@ DOM overlays:
 |---|---|
 | top left | session id, copy button (`navigator.clipboard`), export (link to the export endpoint), import (file input → POST), "offline" badge while the tube is disconnected, one-line message for errors |
 | bottom left | tools: select, text, frame, shape (picker: circle, rectangle, star, arrow), sticky note, connection; undo ↶ and redo ↷ |
-| above the selection's bounding box | fill swatches (when every selected object is a shape or sticky), layering (to front ⤒, forward ↑, backward ↓, to back ⤓; hidden while all is locked), lock/unlock, group/ungroup, delete |
+| centered above the selection's bounding box (kept inside the window) | a fill button showing the current fill that opens the swatches (when every selected object is a shape or sticky), an Order button that opens the layering moves (to front ⤒, forward ↑, backward ↓, to back ⤓; hidden while all is locked), lock/unlock, group/ungroup, delete. A menu stays open for more picks and closes on its button, on the other menu's button, on pressing the board or when the selection changes |
 | over the edited object | `<textarea>` while editing text |
 
 ### Pointer
