@@ -10,6 +10,7 @@
 (def sticky-fill "#fff176")
 (def shape-kinds [:circle :rect :star :arrow])
 (def swatches [nil "#fff176" "#ffb74d" "#e57373" "#81c784" "#64b5f6" "#ba68c8" "#ffffff" "#000000"])
+(def text-colors [nil "#000000" "#ffffff" "#e57373" "#ffb74d" "#81c784" "#64b5f6" "#ba68c8"])
 (defn ink
   "Text color for a sticky with this #rrggbb fill: dark, or white on dark fills."
   [fill]
@@ -75,6 +76,20 @@
   [objects ids]
   (into {} (comp (filter #(contains? objects %)) (map (fn [id] [id nil])))
         (ops/cascade-ids objects (map :id (unlocked objects ids)))))
+
+(defn text-color
+  "The colour o's text is drawn in: its chosen :color, else ink for its sticky's
+  fill or the filled object behind it, else nil (the theme's text colour)."
+  [objects o]
+  (or (:color o)
+      (when-let [b (if (= :sticky (:kind o)) o (geom/backdrop objects o))] (ink (:fill b)))))
+
+(defn text-color-changes
+  "Sets the text colour of unlocked texts and stickies; nil goes back to automatic."
+  [objects ids color]
+  (into {} (keep (fn [o] (when (text-kinds (:kind o))
+                           [(:id o) (if color (assoc o :color color) (dissoc o :color))])))
+        (unlocked objects ids)))
 
 (defn fill-changes
   "Sets the fill of unlocked shapes and stickies; nil (no fill) only for shapes."

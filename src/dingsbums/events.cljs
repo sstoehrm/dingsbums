@@ -348,6 +348,7 @@
   (update (commit db (apply f (:objects db) (:selection db) args)) :db prune))
 
 (defn selection-fill [db color] (change-selection db model/fill-changes color))
+(defn selection-text-color [db color] (change-selection db model/text-color-changes color))
 (defn selection-lock [db locked?] (change-selection db model/lock-changes locked?))
 (defn selection-group [db] (change-selection db model/group-changes))
 (defn selection-ungroup [db] (change-selection db model/ungroup-changes))
@@ -562,6 +563,7 @@
                 :edit/commit edit-commit
                 :edit/cancel edit-cancel
                 :selection/fill selection-fill
+                :selection/text-color selection-text-color
                 :selection/lock selection-lock
                 :selection/group selection-group
                 :selection/ungroup selection-ungroup

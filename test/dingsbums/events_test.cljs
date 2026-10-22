@@ -278,6 +278,7 @@
       (is (= #{"a" "b"} (set (second (first (:tube/send fx)))))))
     (is (every? :locked? (objects-of (ev/selection-lock db true))))
     (is (= "#e57373" (get-in (ev/selection-fill db "#e57373") [:db :objects "b" :fill])))
+    (is (= "#64b5f6" (get-in (ev/selection-text-color db "#64b5f6") [:db :objects "a" :color])))
     (let [fx (ev/selection-layer (assoc db :selection #{"a"}) :front)]
       (is (= ["b" "a"] (mapv :id (geom/draw-order (get-in fx [:db :objects])))))
       (is (= [[:op/upsert [(assoc sticky :z 3)]]] (:tube/send fx)))
