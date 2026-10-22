@@ -55,7 +55,8 @@ can't think of right now. That's what a whiteboard is full of.
   shape), N sticky note, L connection. Picking the active tool again, by key
   or button, goes back to Select; a hint at the bottom says what to do.
 - Export a board as a `.tar` and import it again.
-- Twelve colour themes, or follow the OS light/dark setting.
+- A quiet parchment look by default, twelve more colour themes, or follow
+  the OS light/dark setting. Themes only change the colours.
 
 Sessions live in the server's memory. A session nobody has open for 15
 minutes is gone, so export what you want to keep.

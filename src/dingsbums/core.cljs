@@ -98,7 +98,7 @@
 
 (defn- stored-theme []
   (try (let [v (js/localStorage.getItem events/theme-storage-key)]
-         (some #(when (= v (name %)) %) themes/names))
+         (some #(when (= v (name %)) %) (cons :os themes/names)))
        (catch :default _ nil)))
 
 (defn- stored-hand? []
