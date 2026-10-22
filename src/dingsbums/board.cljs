@@ -104,11 +104,16 @@
       :shape (do (path! ctx o)
                  (when-let [f (:fill o)] (set! (.-fillStyle ctx) f) (.fill ctx))
                  (.stroke ctx))
-      ;; flat, no outline and no shadow: a note of colour on the board
+      ;; flat and no shadow: a note of colour on the board, with a hairline
+      ;; only when its colour would vanish into the board's
       :sticky (do (set! (.-fillStyle ctx) (:fill o "#fff176"))
                   (.beginPath ctx)
                   (.roundRect ctx x y w h sticky-radius)
                   (.fill ctx)
+                  (when (model/blends? (:fill o "#fff176") (:bg theme))
+                    (set! (.-strokeStyle ctx) (:panel-border theme))
+                    (set! (.-lineWidth ctx) (/ 1 zoom))
+                    (.stroke ctx))
                   (when-not (= editing-id (:id o)) (text! ctx o (model/text-color objects o))))
       :text (when-not (= editing-id (:id o))
               (text! ctx o (or (model/text-color objects o) (:text-strong theme))))

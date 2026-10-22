@@ -91,6 +91,7 @@
   (is (= [nil (:parchment themes/themes)] (:theme/apply (ev/theme-select board nil))) "the default is parchment")
   (is (= [nil (:parchment themes/themes)] (:theme/apply (ev/theme-os board true))) "whatever the OS says")
   (is (= [:os (:light themes/themes)] (:theme/apply (ev/theme-select board :os))))
+  (is (= [nil (:parchment themes/themes)] (:theme/apply (ev/theme-select board :parchment))) "parchment is the default")
   (is (= [:os (:dark themes/themes)] (:theme/apply (ev/theme-os (assoc board :theme :os) true))) "follow the OS")
   (let [fx (ev/theme-os (assoc board :theme :paper) true)]
     (is (true? (get-in fx [:db :os-dark?])))

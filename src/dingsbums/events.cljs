@@ -126,7 +126,7 @@
   "pref: a theme name, :os to follow the OS, or nil for the default. Saved in
   this browser."
   [db pref]
-  (let [pref (when (themes/pref? pref) pref)]
+  (let [pref (when (and (themes/pref? pref) (not= :parchment pref)) pref)]
     {:db (assoc db :theme pref) :theme/apply [pref (themes/effective pref (:os-dark? db))]}))
 
 (defn theme-os [db dark?] (theme-select (assoc db :os-dark? dark?) (:theme db)))

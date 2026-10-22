@@ -18,6 +18,14 @@
   (is (= "#fff" (m/ink "#1f2937")))
   (is (= "#222" (m/ink nil)) "default sticky fill"))
 
+(deftest blends-with-the-board
+  (is (m/blends? "#ffffff" "#ffffff"))
+  (is (m/blends? "#ffffff" "#f6f1e6") "white on parchment")
+  (is (m/blends? "#000000" "#161616") "black on carbonfox")
+  (is (not (m/blends? "#fff176" "#f6f1e6")) "yellow on parchment stands out")
+  (is (not (m/blends? "#ffffff" "#111827")))
+  (is (not (m/blends? "junk" "#ffffff")) "not a colour: no"))
+
 (deftest make-assigns-id-z-and-kind-defaults
   (let [o (m/make objs :sticky {:x 1 :y 2 :w 3 :h 4} nil)]
     (is (string? (:id o)))
