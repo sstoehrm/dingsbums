@@ -11,8 +11,11 @@ permissions:
 env:
   # the README's minimum
   JAVA_VERSION: 25
+  # renovate: datasource=node-version depName=node versioning=node
   NODE_VERSION: 24.21.0
+  # renovate: datasource=github-tags depName=clojure/brew-install versioning=loose
   CLOJURE_CLI_VERSION: 1.12.6.1673
+  # renovate: datasource=github-releases depName=babashka/babashka extractVersion=^v(?<version>.*)$
   BB_VERSION: 1.13.225
 
 jobs:
@@ -49,6 +52,7 @@ jobs:
 
       - name: Lint (clj-kondo)
         env:
+          # renovate: datasource=github-release-attachments depName=clj-kondo/clj-kondo extractVersion=^v(?<version>.*)$
           CLJ_KONDO_VERSION: 2026.08.04
           CLJ_KONDO_SHA256: dd3bb3ec91bcb838e9bbefc9ba9968b69a8fe2a625fa67e8b0485605604e61d1
         run: |

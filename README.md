@@ -130,8 +130,8 @@ Tests:
     bb jar:smoke      # builds the release jar and runs it the way bbin does
     bb dist           # the offline service folder (downloads a static bb)
 
-CI also lints with clj-kondo (`clj-kondo --lint src test`) and runs the
-vulnerability gate on every PR and daily, see
+CI also lints with clj-kondo and runs the vulnerability gate on every PR,
+every push to main and daily, see
 [.github/actions/vuln-gate](.github/actions/vuln-gate/README.md).
 
 Releasing: `bb release vX.Y.Z` on a clean main that matches origin tags and

@@ -15,14 +15,17 @@ on:
 permissions:
   contents: read
 
+# a scheduled run and a push to main must not cancel each other
 concurrency:
-  group: vuln-gate-${{ github.ref }}
+  group: vuln-gate-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 env:
   # the README's minimum
   JAVA_VERSION: 25
+  # renovate: datasource=node-version depName=node versioning=node
   NODE_VERSION: 24.21.0
+  # renovate: datasource=github-tags depName=clojure/brew-install versioning=loose
   CLOJURE_CLI_VERSION: 1.12.6.1673
 
 jobs:

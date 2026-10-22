@@ -18,18 +18,13 @@ the raw OSV-Scanner reports.
 KEV (CISA JSON feed) and EPSS (FIRST API) are fetched on every run, and the
 workflow also runs daily: a finding can start failing without any code change.
 
-OSV-Scanner is a release binary pinned by checksum, with its SLSA provenance
-checked by slsa-verifier (itself pinned by checksum). It scans offline against
-a database cached once a day, so the dependency list stays on the runner. It
-recognises CycloneDX SBOMs by their name, so they must be called `*.cdx.json`.
-
 | Edge case | Rule |
 | --- | --- |
-| Several CVSS vectors (v3.x and v4.0, across aliases) | OSV-Scanner's `max_severity`, the highest base score, counts |
-| No CVSS score at all | advisory severity HIGH or CRITICAL counts as ≥ 7.0 |
+| Several CVSS scores (v3.x and v4.0, across aliased advisories) | the highest one counts (OSV-Scanner's `max_severity`, computed from the vectors) |
+| No CVSS score at all | the advisory's severity HIGH or CRITICAL (GHSA) counts as ≥ 7.0 |
 | CVE has no EPSS score yet (new CVEs) | rule 2 cannot fire; only KEV fails it |
 | ID is not a CVE (GHSA-only) | KEV and EPSS are keyed by CVE, so report only, unless OSV lists a CVE alias |
-| KEV or EPSS cannot be fetched, OSV-Scanner errors, a report or the allowlist is invalid | the gate fails (exit 2), it never passes blind |
+| KEV or EPSS cannot be fetched, a report or the allowlist is invalid | the gate fails (exit 2), it never passes blind |
 
 Exit codes of `gate.clj`: `0` passed, `1` blocking findings, `2` could not decide.
 
@@ -49,8 +44,8 @@ ignore:
   date; an invalid entry fails the gate.
 - `id` is the finding's ID or one of its CVE/GHSA aliases, never a vendor
   advisory (an RHSA can cover many CVEs).
-- This file is the only suppression the gate honours: the scan runs with an
-  empty `--config`, so an `osv-scanner.toml` is ignored.
+- This file is the only suppression the gate honours: `osv-scanner.toml`
+  and `OSV_*` variables are ignored.
 - The entry suppresses the finding through `expires`. From the day after, the
   finding is evaluated again and fails the build if it still meets the policy;
   the summary lists the expired entry. Extend the date only with a fresh reason.
@@ -109,7 +104,15 @@ including JARs shaded into others; for a JAR without them it guesses from the
 file name, which may not match advisories, and the step warns about each one. Git and local source deps (`:git/sha`, `:local/root`) are
 source trees without coordinates: they are not in the SBOM, and the step warns
 about each one. Cache `~/.m2/repository` and `~/.gitlibs` so the resolve is
-cheap; the gate caches the OSV database itself.
+cheap; the gate caches the OSV-Scanner databases itself.
+
+OSV-Scanner runs offline against databases it downloads per ecosystem, so
+the dependency list stays in CI instead of going to osv.dev. Its release binary
+is pinned by SHA-256 and its SLSA provenance verified with slsa-verifier;
+babashka is pinned by SHA-256. SBOMs must be named `*.cdx.json`, which is how
+OSV-Scanner recognises CycloneDX. Keep the gate job free of secrets
+(`permissions: contents: read`, `persist-credentials: false`) and separate
+from publish and deploy jobs.
 
 ## Tests
 
