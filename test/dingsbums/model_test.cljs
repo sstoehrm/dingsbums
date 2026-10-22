@@ -1,6 +1,7 @@
 (ns dingsbums.model-test
   (:require [dingsbums.test-env]
             [cljs.test :refer [deftest is testing]]
+            [dingsbums.geom :as geom]
             [dingsbums.model :as m]))
 
 (def a {:id "a" :kind :sticky :x 0 :y 0 :w 10 :h 10 :z 1 :fill "#fff176" :text "x"})
@@ -113,3 +114,45 @@
 
 (deftest upserts-go-one-object-per-frame
   (is (= [[:op/upsert [a]] [:op/upsert [b]] [:op/delete ["ab"]]] (m/ops-for {"a" a "b" b "ab" nil}))))
+
+(deftest layering
+  (let [o (fn [id z & kv] (apply assoc {:id id :kind :sticky :x 0 :y 0 :w 10 :h 10 :z z} kv))
+        os {"p" (o "p" 1) "q" (o "q" 2) "r" (o "r" 3) "s" (o "s" 4)
+            "f" (o "f" 9 :kind :frame) "g" (o "g" 10 :kind :frame) "pq" {:id "pq" :kind :connection :from "p" :to "q" :z 5}}
+        order (fn [objects ids move] (mapv :id (geom/draw-order (m/apply-changes objects (m/layer-changes objects ids move)))))]
+    (is (= ["f" "g" "pq" "q" "r" "s" "p"] (order os #{"p"} :front)))
+    (is (= ["f" "g" "pq" "s" "p" "q" "r"] (order os #{"s"} :back)))
+    (is (= ["f" "g" "pq" "q" "p" "r" "s"] (order os #{"p"} :forward)))
+    (is (= ["f" "g" "pq" "p" "q" "s" "r"] (order os #{"s"} :backward)))
+    (testing "frames stay below everything, each kind moves within its layer"
+      (is (= ["g" "f" "pq" "p" "q" "r" "s"] (order os #{"f"} :front)))
+      (is (= ["g" "f" "pq" "q" "r" "s" "p"] (order os #{"f" "p"} :front))))
+    (testing "a multi-selection keeps its own order"
+      (is (= ["f" "g" "pq" "r" "s" "p" "q"] (order os #{"p" "q"} :front)))
+      (is (= ["f" "g" "pq" "r" "p" "q" "s"] (order os #{"p" "q"} :forward)))
+      (is (= ["f" "g" "pq" "q" "p" "s" "r"] (order os #{"p" "r"} :forward)) "interleaved: each one step up"))
+    (testing "only the moved objects change"
+      (is (= #{"p"} (set (keys (m/layer-changes os #{"p"} :front)))))
+      (is (= #{"p" "q"} (set (keys (m/layer-changes os #{"p"} :forward))))))
+    (testing "already there: no changes"
+      (is (= {} (m/layer-changes os #{"s"} :front)))
+      (is (= {} (m/layer-changes os #{"s"} :forward)))
+      (is (= {} (m/layer-changes os #{"p"} :back)))
+      (is (= {} (m/layer-changes os #{"p" "q"} :backward)))
+      (is (= {} (m/layer-changes os #{} :front))))
+    (testing "equal z (two clients creating at once) still reorders"
+      (let [tied (assoc os "q" (o "q" 1))
+            lower (first (filter #{"p" "q"} (order tied #{} :front)))
+            upper ({"p" "q" "q" "p"} lower)]
+        (is (= [upper lower] (filterv #{"p" "q"} (order tied #{lower} :forward)))))
+      (is (= #{"r" "s"} (set (keys (m/layer-changes (assoc os "q" (o "q" 1)) #{"r"} :forward))))
+          "a tie the step does not touch keeps its z")
+      (let [tied (assoc os "r" (o "r" 4))]
+        (doseq [[sel other] [["r" "s"] ["s" "r"]]]
+          (let [ch (m/layer-changes tied #{sel} :front)]
+            (is (> (get-in ch [sel :z]) (:z (tied other))) "front means above the tie on every client")))))
+    (testing "a missing z counts as 0"
+      (is (= ["p" "q"] (order {"p" (o "p" -1) "q" (dissoc (o "q" 0) :z)} #{"p"} :back))))
+    (testing "locked objects are not moved"
+      (is (= {} (m/layer-changes (assoc-in os ["p" :locked?] true) #{"p"} :front)))
+      (is (= ["f" "g" "pq" "q" "r" "s" "p"] (order (assoc-in os ["q" :locked?] true) #{"p" "q"} :front))))))

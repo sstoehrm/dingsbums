@@ -82,12 +82,13 @@
         t (min 1 tx ty)]
     [(+ cx (* dx t)) (+ cy (* dy t))]))
 
-(defn- layer [o] (case (:kind o) :frame 0 :connection 1 2))
+(defn layer [o] (case (:kind o) :frame 0 :connection 1 2))
 
 (defn draw-order
-  "Objects bottom to top: frames, then connections, then everything else; :z within."
+  "Objects bottom to top: frames, then connections, then everything else; :z
+  within (none counts as 0)."
   [objects]
-  (sort-by (juxt layer :z) (vals objects)))
+  (sort-by (juxt layer #(:z % 0)) (vals objects)))
 
 (defn- seg-dist
   "Distance from p to the segment a–b."

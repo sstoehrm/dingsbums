@@ -3,6 +3,7 @@
   set is {id obj-or-nil}; nil means the object is removed. A history entry is
   {:before changes :after changes} over the same ids."
   (:require [clojure.string :as str]
+            [dingsbums.geom :as geom]
             [dingsbums.ops :as ops]))
 
 (def default-size {:text [200 50] :frame [400 300] :shape [120 120] :sticky [200 200]})
@@ -81,6 +82,54 @@
   (into {} (keep (fn [o] (when (and (#{:shape :sticky} (:kind o)) (or color (= :shape (:kind o))))
                            [(:id o) (assoc o :fill color)])))
         (unlocked objects ids)))
+
+(defn- step-up
+  "v with each selected object one place up, past the unselected one above it."
+  [v sel?]
+  (reduce (fn [v i] (if (and (sel? (v i)) (not (sel? (v (inc i))))) (assoc v i (v (inc i)) (inc i) (v i)) v))
+          v (range (- (count v) 2) -1 -1)))
+
+(defn- raised
+  "zs (ascending) raised just enough to be strictly increasing from index i to j,
+  and past j while a raised value collides; the rest as it was."
+  [zs i j]
+  (loop [k i prev (get zs (dec i) ##-Inf) out (subvec zs 0 i)]
+    (let [z (get zs k)]
+      (if (and z (or (<= k j) (<= z prev)))
+        (let [z (max z (inc prev))] (recur (inc k) z (conj out z)))
+        (into out (subvec zs k))))))
+
+(defn- layer-z
+  "{obj z} for the layer l (bottom to top) rearranged by move."
+  [l sel? move]
+  (let [zs (mapv #(:z % 0) l)
+        s (filter sel? l)
+        sz (map #(:z % 0) s)
+        uz (keep #(when-not (sel? %) (:z % 0)) l)]
+    (case move
+      ;; compared by z, not draw order: equal z may draw either way round on another client
+      :front (when (and (seq s) (seq uz) (<= (apply min sz) (apply max uz)))
+               (zipmap s (map #(+ (peek zs) 1 %) (range))))
+      :back (when (and (seq s) (seq uz) (>= (apply max sz) (apply min uz)))
+              (zipmap s (map #(+ (- (first zs) (count s)) %) (range))))
+      ;; the same z values in the new order, made strictly increasing around the
+      ;; step: equal z (two clients creating at once) would otherwise swap nothing
+      (:forward :backward)
+      (let [v (if (= move :forward) (step-up l sel?) (vec (rseq (step-up (vec (rseq l)) sel?))))
+            changed (keep-indexed (fn [i o] (when (not= o (l i)) i)) v)]
+        (when (seq changed)
+          (zipmap v (raised zs (first changed) (last changed))))))))
+
+(defn layer-changes
+  "Moves the unlocked objects among ids to the :front or :back, or one step
+  :forward or :backward, in draw order, within their layer (frames stay below
+  connections, connections below the rest). Only objects whose :z changes are in it."
+  [objects ids move]
+  (let [sel? (comp (into #{} (map :id) (unlocked objects ids)) :id)]
+    (into {}
+          (comp (mapcat #(layer-z % sel? move))
+                (keep (fn [[o z]] (when (not= z (:z o)) [(:id o) (assoc o :z z)]))))
+          (vals (group-by geom/layer (geom/draw-order objects))))))
 
 (defn text-changes
   "Sets the text of object id; an emptied :text object is removed."
