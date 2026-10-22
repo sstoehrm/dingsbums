@@ -39,6 +39,11 @@ can't think of right now. That's what a whiteboard is full of.
   connections between them.
 - Fill colours, groups, locking, undo/redo.
 - Paste images and text straight onto the board.
+- Copy and paste (Ctrl+C, Ctrl+V) whatever is selected, images included, also
+  into another board: the copies keep their layout and the connections
+  between them, and land beside the originals or in the middle of the view.
+  A single copied image also pastes as a picture into other apps (on https or
+  localhost; elsewhere the browser keeps copies within dingsbums).
 - An infinite canvas: scroll to pan (shift + wheel sideways), ctrl + wheel or
   the + and − buttons to zoom.
 - Hand mode (✋ beside the zoom, or H) for a mouse: drag the empty canvas to

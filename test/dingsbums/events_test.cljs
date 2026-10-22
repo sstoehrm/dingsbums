@@ -293,6 +293,72 @@
          (get-in (ev/paste-image board (apply str (repeat 15000001 "a")) 10 10) [:db :message])))
   (is (nil? (ev/paste-text ev/initial-db "x")) "ignored on the landing screen"))
 
+(def line {:id "c" :kind :connection :from "a" :to "b" :z 3})
+(def picture {:id "d" :kind :image :x 0 :y 300 :w 60 :h 40 :z 4 :src "data:image/png;base64,AA"})
+(def copyable (assoc board :viewport [800 600] :objects {"a" sticky "b" shape "c" line "d" picture}))
+
+(defn- round-trip
+  "The objects a copy of sel in db yields when read back from the clipboard."
+  [db sel]
+  (ev/read-copied (:data (ev/copy-payload (assoc db :selection sel)))))
+
+(deftest copying
+  (is (nil? (ev/copy-payload copyable)) "nothing selected: the browser copies")
+  (is (= "hi" (:text (ev/copy-payload (assoc copyable :selection #{"a" "d"})))) "plain text for other apps")
+  (is (= #{"a" "b" "c"} (set (map :id (round-trip copyable #{"a" "b"})))) "the connection between them comes along")
+  (is (= #{"a"} (set (map :id (round-trip copyable #{"a" "c"})))) "a connection with an end left behind does not")
+  (is (= [picture] (round-trip copyable #{"d"})) "an image, with its source")
+  (is (nil? (ev/read-copied "{:dingsbums/objects [{:id \"x\" :kind :evil}]}")) "invalid objects are dropped")
+  (is (nil? (ev/read-copied "(not a map")) "garbage")
+  (is (nil? (ev/read-copied nil))))
+
+(deftest copying-images
+  (is (= (:src picture) (:image (ev/copy-payload (assoc copyable :selection #{"d"})))) "a single image goes out as a picture too")
+  (is (nil? (:image (ev/copy-payload (assoc copyable :selection #{"a" "d"})))) "not mixed with other objects")
+  (let [{:keys [data]} (ev/copy-payload (assoc copyable :selection #{"d"}))
+        html (ev/copy-html data (:src picture))]
+    (is (= [picture] (ev/read-copied (ev/html-copied html))) "the copy rides along in the HTML")
+    (is (re-find #"<img src=\"data:image/png" html) "apps that take HTML see the picture"))
+  (is (nil? (ev/html-copied "<p>hello <img src=\"x.png\"></p>")) "HTML from elsewhere")
+  (is (nil? (ev/html-copied nil))))
+
+(deftest pasting-objects
+  (let [copied (round-trip copyable #{"a" "b"})
+        fx (ev/paste-objects copyable copied)
+        objects (get-in fx [:db :objects])
+        new-ids (get-in fx [:db :selection])
+        news (map objects new-ids)
+        by-kind (into {} (map (juxt :kind identity)) news)]
+    (is (= 7 (count objects)) "originals stay, three copies")
+    (is (= 3 (count new-ids)) "the copies are selected")
+    (is (not-any? #{"a" "b" "c"} new-ids) "with fresh ids")
+    (is (= [(:id (:sticky by-kind)) (:id (:shape by-kind))] ((juxt :from :to) (:connection by-kind)))
+        "the connection joins the copies")
+    (is (= [20 20] ((juxt :x :y) (:sticky by-kind))) "offset from visible originals")
+    (is (= [220 20] ((juxt :x :y) (:shape by-kind))) "keeping the layout")
+    (is (= [5 6 7] (sort (map :z news))) "on top, in their order")
+    (is (= 3 (count (:tube/send fx))) "one upsert each")
+    (is (nil? (ev/paste-objects (:db fx) [])) "nothing to paste")
+    (is (= (:objects copyable) (get-in (ev/history-undo (:db fx)) [:db :objects])) "one undo removes them")
+    (let [fx2 (ev/paste-objects (:db fx) copied)
+          sticky2 (some #(when (= :sticky (:kind %)) %) (map (get-in fx2 [:db :objects]) (get-in fx2 [:db :selection])))]
+      (is (= [40 40] ((juxt :x :y) sticky2)) "pasting again cascades")))
+  (let [fx (ev/paste-objects (assoc copyable :camera {:x 5000 :y 5000 :zoom 1}) [sticky])
+        o (get-in fx [:db :objects (first (get-in fx [:db :selection]))])]
+    (is (= [5350 5250] ((juxt :x :y) o)) "originals out of view: the middle of the view"))
+  (let [grouped (map #(assoc % :group "g" :locked? true) [sticky shape])
+        news (vals (apply dissoc (get-in (ev/paste-objects copyable grouped) [:db :objects]) (keys (:objects copyable))))]
+    (is (apply = (map :group news)) "copies form a group")
+    (is (not= "g" (:group (first news))) "of their own")
+    (is (not-any? :locked? news) "unlocked"))
+  (is (= "Image too large (max 15 MB)"
+         (get-in (ev/paste-objects copyable [(assoc picture :src (apply str (repeat 15000001 "a")))]) [:db :message])))
+  (is (nil? (ev/paste-objects copyable [(assoc sticky :x ##Inf)])) "geometry must be finite")
+  (let [fx (ev/paste-objects copyable [sticky shape (assoc line :group "h")])]
+    (is (every? #(or (not (contains? % :group)) (string? (:group %))) (vals (get-in fx [:db :objects])))
+        "a grouped connection keeps a valid group"))
+  (is (nil? (ev/paste-objects ev/initial-db [sticky])) "ignored on the landing screen"))
+
 ;; tube wiring, through hammer with a fake WebSocket
 
 (def sockets (atom []))
