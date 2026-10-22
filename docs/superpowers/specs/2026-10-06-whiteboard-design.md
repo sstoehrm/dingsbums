@@ -150,12 +150,29 @@ hammer.tubes protocol: one EDN event vector per text frame, read with
 
 ### Screens and routing
 
-- No hash: landing screen — "Create new session" button, session id input and
-  "Join" button, an error line.
+- No hash: landing screen — a moonlit skyline scene under a blurred nav, the
+  headline, and a white card with "Create new session", a session id input
+  and "Join", and an error line.
 - `#<id>`: `GET /api/sessions/<id>`; 204 opens the board and creates the tube,
   404 returns to landing with "Session not found".
 - Create: `POST /api/sessions`, then set the hash to the new id.
 - `hashchange` re-runs this; leaving a board destroys its tube.
+
+### Look
+
+- **Themes are colours only** (`dingsbums.themes`, mirrored into CSS custom
+  properties). The default is *parchment*: a warm off-white canvas, white
+  panels, green-gray hairlines, ink text and one blue (`#41a1cf`). The
+  twelve simpleviz themes stay, and "follow the OS" picks light or dark.
+- **The rest is the same in every theme**: a display serif for the wordmark
+  and the landing headline (PP Mondwest where installed, else Georgia), a
+  sans for everything else (AF where installed, else the system UI font)
+  at 13–18 px, 4 px radii on controls and 8 px on panels, 1 px borders, no
+  shadows (sticky notes included), backdrop blur on the session bar and
+  the landing nav, stroke icons. The accent is only ever an outline: the
+  primary action, the active tool or menu, the selection.
+- The landing scene keeps its own colours whatever the theme; only its torn
+  bottom edge takes the page colour.
 
 ### Board
 

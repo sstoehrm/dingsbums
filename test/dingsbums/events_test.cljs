@@ -88,12 +88,22 @@
   (let [fx (ev/theme-select board :nord)]
     (is (= :nord (get-in fx [:db :theme])))
     (is (= [:nord (:nord themes/themes)] (:theme/apply fx))))
-  (is (= [nil (:light themes/themes)] (:theme/apply (ev/theme-select board nil))) "default follows the OS")
-  (is (= [nil (:dark themes/themes)] (:theme/apply (ev/theme-os board true))))
+  (is (= [nil (:parchment themes/themes)] (:theme/apply (ev/theme-select board nil))) "the default is parchment")
+  (is (= [nil (:parchment themes/themes)] (:theme/apply (ev/theme-os board true))) "whatever the OS says")
+  (is (= [:os (:light themes/themes)] (:theme/apply (ev/theme-select board :os))))
+  (is (= [:os (:dark themes/themes)] (:theme/apply (ev/theme-os (assoc board :theme :os) true))) "follow the OS")
   (let [fx (ev/theme-os (assoc board :theme :paper) true)]
     (is (true? (get-in fx [:db :os-dark?])))
     (is (= [:paper (:paper themes/themes)] (:theme/apply fx)) "a picked theme wins over the OS"))
-  (is (= [nil (:light themes/themes)] (:theme/apply (ev/theme-select board :nope))) "unknown names are dropped"))
+  (is (= [nil (:parchment themes/themes)] (:theme/apply (ev/theme-select board :nope))) "unknown names are dropped"))
+
+(deftest themes-are-only-colours
+  (let [ks (set (keys (:parchment themes/themes)))]
+    (is (= :parchment (first themes/names)))
+    (is (every? #(= ks (set (keys %))) (vals themes/themes)) "every theme sets the same keys")
+    (is (every? #(re-matches #"#[0-9a-fA-F]{3,8}" %) (mapcat vals (vals themes/themes))) "and only colours")
+    (is (every? themes/pref? (cons :os themes/names)))
+    (is (not (themes/pref? :nope)))))
 
 (deftest routing
   (let [fx (ev/route-changed with-objs "")]

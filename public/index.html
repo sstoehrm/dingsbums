@@ -8,69 +8,111 @@
 <link rel="icon" href="icons/dingsbums-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="icons/dingsbums-256.png">
 <style>
-  /* the light theme; dingsbums.themes repaints these */
-  :root { --bg: #fafafa; --panel: #fff; --panel-border: #ddd; --panel-divider: #eee; --text: #374151;
-          --text-strong: #000; --text-muted: #6b7280; --accent: #2563eb; --on-accent: #fff;
-          --shadow: rgba(0, 0, 0, .06); }
+  /* the parchment theme; dingsbums.themes repaints these. A theme only
+     changes colours: type, radii and borders below are the same for all. */
+  :root { --bg: #f6f1e6; --panel: #ffffff; --panel-border: #cdd5c8; --panel-divider: #e4e8df; --text: #23241f;
+          --text-strong: #23241f; --text-muted: #63675e; --accent: #41a1cf; --on-accent: #ffffff;
+          /* PP Mondwest and AF where installed, else the fallbacks */
+          --display: "PP Mondwest", "PPMondwest", Georgia, "Times New Roman", serif;
+          --sans: "AF", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
-  html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); }
-  button, .button, select { font: inherit; font-size: 14px; padding: 6px 10px; border: 1px solid var(--panel-border);
-                    border-radius: 6px; background: var(--panel); cursor: pointer; color: inherit; text-decoration: none; line-height: 1.2; }
-  button.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-  .landing { max-width: 360px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; padding: 18vh 16px 0; }
-  .landing h1 { margin: 0 0 8px; }
-  .landing .join { display: flex; gap: 8px; }
-  .landing input { flex: 1; min-width: 0; font: inherit; padding: 6px 10px; border: 1px solid var(--panel-border);
-                   border-radius: 6px; background: var(--panel); color: inherit; }
+  html, body { margin: 0; height: 100%; font-family: var(--sans); background: var(--bg); color: var(--text); }
+  a { color: inherit; }
+  button, .button, select { font: inherit; font-size: 13px; padding: 6px 10px; border: 1px solid var(--panel-border);
+                    border-radius: 4px; background: var(--panel); cursor: pointer; color: inherit; text-decoration: none; line-height: 1.2; }
+  button:hover, .button:hover { background: var(--bg); }
+  /* the one blue thing: an outline on the action and on what is active */
+  button.active, button.primary { border-color: var(--accent); background: var(--panel); }
+  :focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+  .icon { display: block; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5;
+          stroke-linecap: round; stroke-linejoin: round; }
+  .wordmark { font-family: var(--display); font-size: 22px; line-height: 1; letter-spacing: -0.04em; color: var(--text-strong); }
+
+  .landing { min-height: 100%; }
+  .landing .hero { position: relative; }
+  .landing .scene { display: block; width: 100%; height: clamp(280px, 56vh, 560px); }
+  .landing-nav { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); width: calc(100% - 32px);
+    max-width: 1040px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 10px 16px; border: 1px solid var(--panel-border); border-radius: 8px;
+    background: color-mix(in srgb, var(--panel) 64%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+  .landing-nav .wordmark { font-size: 26px; }
+  .landing-nav a { font-size: 14px; text-decoration: none; }
+  .landing .content { max-width: 1040px; margin: 0 auto; padding: 40px 16px 64px; display: flex; flex-wrap: wrap;
+    align-items: center; gap: 40px 64px; }
+  .landing .intro { flex: 1 1 420px; min-width: 0; }
+  .landing .eyebrow { margin: 0; font-size: 13px; color: var(--text-muted); }
+  .landing h1 { margin: 12px 0 16px; max-width: 13ch; font-family: var(--display); font-weight: 400;
+    font-size: clamp(40px, 6vw, 54px); line-height: 1.04; letter-spacing: -0.04em; color: var(--text-strong); }
+  .landing .lead { margin: 0; max-width: 32em; font-size: 18px; line-height: 1.55; color: var(--text-muted); }
+  .landing .card { flex: 1 1 320px; max-width: 400px; padding: 28px; background: var(--panel);
+    border: 1px solid var(--panel-border); border-radius: 8px; }
+  .landing .card h2 { margin: 0 0 6px; font-size: 18px; font-weight: 500; color: var(--text-strong); }
+  .landing .note { margin: 0 0 20px; font-size: 14px; color: var(--text-muted); }
+  .landing .card .primary { width: 100%; padding: 12px 16px; font-size: 15px; font-weight: 500; }
+  .landing .or { display: flex; align-items: center; gap: 12px; margin: 22px 0 18px; font-size: 13px; color: var(--text-muted); }
+  .landing .or::before, .landing .or::after { content: ""; flex: 1; height: 1px; background: var(--panel-border); }
+  .landing .join { display: flex; flex-direction: column; gap: 6px; margin: 0; }
+  .landing .join label { font-size: 13px; color: var(--text-muted); }
+  .landing .join .row { display: flex; gap: 8px; }
+  .landing input { flex: 1; min-width: 0; font: inherit; font-size: 15px; padding: 10px 12px; border: 1px solid var(--panel-border);
+                   border-radius: 4px; background: var(--panel); color: inherit; }
+  .landing .join button { font-size: 15px; padding: 10px 16px; }
+  .landing .error { margin-top: 12px; font-size: 14px; }
   /* shown after a moment, so a small board does not flash it; transform only,
      so it keeps turning while a big snapshot is parsed */
   .loading { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
     justify-content: center; gap: 16px; color: var(--text-muted); font-size: 14px;
     animation: loading-in .2s .3s both; }
   .loading p { margin: 0; }
-  .spinner { width: 32px; height: 32px; border: 3px solid var(--panel-border); border-top-color: var(--accent);
+  .spinner { width: 32px; height: 32px; border: 1px solid var(--panel-border); border-top-color: var(--accent);
     border-radius: 50%; animation: spin .8s linear infinite; }
   @keyframes loading-in { from { opacity: 0; } }
   @keyframes spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
   .error { color: #c62828; min-height: 1.2em; margin: 0; }
+
   .app { position: fixed; inset: 0; overflow: hidden; background: var(--bg); }
   .board { touch-action: none; }
   .session-bar, .toolbar, .zoom-bar, .sel-toolbar { position: absolute; display: flex; gap: 6px; align-items: center;
-    background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 6px;
-    box-shadow: 0 1px 4px var(--shadow); }
-  .session-bar { top: 12px; left: 12px; }
-  .session-bar .sid { font-size: 13px; padding: 0 4px; user-select: all; }
+    background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 6px; }
+  /* navigation: translucent and blurred over the board */
+  .session-bar { top: 12px; left: 12px; padding-left: 14px; max-width: calc(100% - 24px); flex-wrap: wrap;
+    background: color-mix(in srgb, var(--panel) 66%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+  .session-bar .sid { font-size: 13px; padding: 0 4px; color: var(--text-muted); user-select: all; }
   .badge { background: #c62828; color: #fff; border-radius: 4px; padding: 2px 6px; font-size: 12px; }
   .msg { font-size: 13px; color: var(--text-muted); }
   .toolbar { left: 12px; bottom: 12px; flex-direction: column; align-items: stretch; }
   .toolbar .tools, .toolbar .shapes { display: flex; gap: 4px; }
-  .toolbar button { min-width: 36px; }
+  .toolbar button, .zoom-bar button { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px;
+    padding: 0; border-color: transparent; background: transparent; }
+  .toolbar button:hover, .zoom-bar button:hover { background: var(--bg); }
+  .toolbar button.active, .zoom-bar button.active { border-color: var(--accent); background: var(--panel); }
   .zoom-bar { right: 12px; bottom: 12px; }
-  .zoom-bar button { min-width: 36px; }
   .zoom { font-size: 13px; min-width: 4ch; text-align: center; font-variant-numeric: tabular-nums; }
-  .sep { width: 1px; background: var(--panel-divider); margin: 0 4px; }
+  .sep { align-self: stretch; width: 1px; background: var(--panel-border); margin: 4px; }
   .sel-toolbar { z-index: 2; }
   .hint { position: absolute; left: 50%; bottom: 108px; transform: translateX(-50%); max-width: calc(100% - 32px);
-    background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 8px 12px;
-    box-shadow: 0 1px 4px var(--shadow); font-size: 13px; text-align: center; pointer-events: none; }
+    border: 1px solid var(--panel-border); border-radius: 8px; padding: 8px 12px; font-size: 13px; text-align: center;
+    pointer-events: none; background: color-mix(in srgb, var(--panel) 80%, transparent);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
   .swatch { width: 22px; height: 22px; padding: 0; border-radius: 50%; }
   .sel-toolbar .menu { position: relative; display: flex; }
   .menu-button { display: flex; align-items: center; justify-content: center; min-width: 36px; }
   .menu-button .dot { width: 1.2em; height: 1.2em; border-radius: 50%; border: 1px solid var(--panel-border); }
   .text-a { display: flex; flex-direction: column; align-items: center; height: 1.2em; font-weight: 600; line-height: 1; }
-  .text-a .bar { width: 1.1em; height: 3px; margin-top: 1px; border-radius: 1px; }
+  .text-a .bar { width: 1.1em; height: 2px; margin-top: 2px; }
   .swatch.auto { font-size: 12px; font-weight: 600; line-height: 1; }
   /* menus open above the toolbar; .down: too close to the top, below */
   .sel-menu { position: absolute; bottom: calc(100% + 12px); left: -7px; display: flex; gap: 6px;
-    background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 6px;
-    box-shadow: 0 1px 4px var(--shadow); }
+    background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 6px; }
   .sel-toolbar.down .sel-menu { bottom: auto; top: calc(100% + 12px); }
-  .sel-menu.column { flex-direction: column; align-items: stretch; }
-  .sel-menu.column button { display: flex; gap: 8px; white-space: nowrap; text-align: left; }
-  .sel-menu kbd { margin-left: auto; padding-left: 12px; font: inherit; font-size: 12px; color: var(--text-muted); }
-  .text-editor { position: absolute; z-index: 3; margin: 0; border: none; outline: 2px solid var(--accent);
+  .sel-menu.column { flex-direction: column; align-items: stretch; gap: 2px; }
+  .sel-menu.column button { display: flex; align-items: center; gap: 10px; padding: 8px 10px; white-space: nowrap;
+    text-align: left; border-color: transparent; }
+  .sel-menu.column .icon { width: 16px; height: 16px; }
+  .sel-menu kbd { margin-left: auto; padding-left: 16px; font: inherit; font-size: 12px; color: var(--text-muted); }
+  .text-editor { position: absolute; z-index: 3; margin: 0; border: none; outline: 1px solid var(--accent);
     background: transparent; resize: none; overflow: hidden; line-height: 1.2; }
 </style>
 </head>

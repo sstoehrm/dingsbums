@@ -123,9 +123,10 @@
     (when-not (str/blank? sid) {:db (assoc db :error nil) :set-hash sid})))
 
 (defn theme-select
-  "pref: a theme name, or nil to follow the OS. Saved in this browser."
+  "pref: a theme name, :os to follow the OS, or nil for the default. Saved in
+  this browser."
   [db pref]
-  (let [pref (when (contains? themes/themes pref) pref)]
+  (let [pref (when (themes/pref? pref) pref)]
     {:db (assoc db :theme pref) :theme/apply [pref (themes/effective pref (:os-dark? db))]}))
 
 (defn theme-os [db dark?] (theme-select (assoc db :os-dark? dark?) (:theme db)))

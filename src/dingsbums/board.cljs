@@ -95,25 +95,20 @@
                       (.stroke ctx)
                       (set! (.-fillStyle ctx) (:text-strong theme))
                       (arrowhead! ctx a tip 14)))
+      ;; a hairline at every zoom
       :frame (do (set! (.-strokeStyle ctx) (:sub theme))
+                 (set! (.-lineWidth ctx) (/ 1 zoom))
                  (.beginPath ctx)
                  (.roundRect ctx x y w h frame-radius)
                  (.stroke ctx))
       :shape (do (path! ctx o)
                  (when-let [f (:fill o)] (set! (.-fillStyle ctx) f) (.fill ctx))
                  (.stroke ctx))
-      ;; no outline but a drop shadow: a note on the board, not a filled rect
-      :sticky (do (.save ctx)
-                  (set! (.-shadowColor ctx) "rgba(0, 0, 0, .3)")
-                  ;; shadows ignore the transform: scale by zoom and the canvas's pixel ratio
-                  (let [k (* zoom js/window.devicePixelRatio)]
-                    (set! (.-shadowBlur ctx) (* 8 k))
-                    (set! (.-shadowOffsetY ctx) (* 3 k)))
-                  (set! (.-fillStyle ctx) (:fill o "#fff176"))
+      ;; flat, no outline and no shadow: a note of colour on the board
+      :sticky (do (set! (.-fillStyle ctx) (:fill o "#fff176"))
                   (.beginPath ctx)
                   (.roundRect ctx x y w h sticky-radius)
                   (.fill ctx)
-                  (.restore ctx)
                   (when-not (= editing-id (:id o)) (text! ctx o (model/text-color objects o))))
       :text (when-not (= editing-id (:id o))
               (text! ctx o (or (model/text-color objects o) (:text-strong theme))))
@@ -124,7 +119,7 @@
       nil)))
 
 (defn- selection! [^js ctx objects sel zoom theme]
-  (set! (.-lineWidth ctx) (/ 1.5 zoom))
+  (set! (.-lineWidth ctx) (/ 1 zoom))
   (doseq [id sel
           :let [o (get objects id) r (when o (geom/obj-rect objects o))]
           :when r]

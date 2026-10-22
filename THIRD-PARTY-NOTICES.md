@@ -21,7 +21,8 @@ https://github.com/google/closure-library
 
 ## Color palettes (`src/dingsbums/themes.cljs`)
 
-The themes are simpleviz's (https://github.com/sstoehrm/simpleviz). Five
+Apart from `parchment`, dingsbums's own default, the themes are simpleviz's
+(https://github.com/sstoehrm/simpleviz). Five
 take their colors from these MIT-licensed palettes:
 
 - Solarized (`solarized-light`, `solarized-dark`): Copyright (c) 2011
