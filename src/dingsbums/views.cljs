@@ -81,7 +81,7 @@
    [:button {:title "Zoom in" :on-click [:camera/zoom-step 1.25]} "+"]])
 
 (def ^:private layer-moves
-  [[:front "Bring to front" "⤒"] [:forward "Bring forward" "↑"] [:backward "Send backward" "↓"] [:back "Send to back" "⤓"]])
+  [[:front "Bring to front (Home)" "⤒"] [:forward "Bring forward" "↑"] [:backward "Send backward" "↓"] [:back "Send to back (End)" "⤓"]])
 
 (defc selection-toolbar [] [sel [:selection] objects [:objects] cam [:camera] drag [:drag] editing [:editing]
                             os (vec (keep #(get objects %) sel))

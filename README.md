@@ -39,7 +39,7 @@ can't think of right now. That's what a whiteboard is full of.
   connections between them.
 - Fill colours, groups, locking, undo/redo.
 - Layering: bring a selection (or group) to the front, forward, backward or
-  to the back from the toolbar above it.
+  to the back from the toolbar above it; Home and End for front and back.
 - Paste images and text straight onto the board.
 - Copy and paste (Ctrl+C, Ctrl+V) whatever is selected, images included, also
   into another board: the copies keep their layout and the connections

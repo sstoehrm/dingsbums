@@ -36,6 +36,8 @@
   (is (= [:selection/delete] (ev/key-action {:key "Backspace"})))
   (is (= [:selection/clear] (ev/key-action {:key "Escape"})))
   (is (= [:space true] (ev/key-action {:key " "})))
+  (is (= [:selection/layer :front] (ev/key-action {:key "Home"})))
+  (is (= [:selection/layer :back] (ev/key-action {:key "End"})))
   (is (nil? (ev/key-action {:key "c" :ctrl? true})) "browser copy untouched")
   (is (nil? (ev/key-action {:key "a"}))))
 

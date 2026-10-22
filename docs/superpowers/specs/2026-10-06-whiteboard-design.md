@@ -220,6 +220,7 @@ Ignored while the textarea has focus.
 |---|---|
 | F2 | edit text |
 | Delete, Backspace | delete the unlocked selected objects |
+| Home, End | bring the selection to the front, send it to the back |
 | Esc | clear the selection, select tool |
 | ctrl/cmd+G | group |
 | ctrl/cmd+shift+G | ungroup |
