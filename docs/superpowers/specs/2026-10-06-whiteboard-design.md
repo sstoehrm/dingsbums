@@ -53,6 +53,8 @@ A session is a map of objects keyed by id; each object is one entry.
  :shape :circle | :rect | :star | :arrow   ; :shape only
  :fill "#ffd54f"                    ; :shape (optional, nil = unfilled) and :sticky
  :text "..."                        ; :text and :sticky
+ :color "#64b5f6"                   ; :text and :sticky (optional; absent = automatic:
+                                    ; ink for the fill behind it, else the theme's text)
  :src "data:image/png;base64,..."   ; :image
  :from "id" :to "id"                ; :connection, drawn center to center
  :group "gid"                       ; optional
@@ -136,7 +138,7 @@ hammer.tubes protocol: one EDN event vector per text frame, read with
   clients. Unreadable frames and events of any other shape are ignored.
   Objects need an `:id` of 1–64 `[A-Za-z0-9_-]` and a known `:kind`, may only
   carry the keys of the data model, each with the right type (numbers for
-  geometry and `:z`, strings for text, src, fill, ends, group; a known `:shape`;
+  geometry and `:z`, strings for text, color, src, fill, ends, group; a known `:shape`;
   boolean `:locked?`).
 - **Frame limit:** http-kit `:max-ws` 20 MB; a larger frame makes http-kit
   close the connection (1009), the client reconnects and resyncs.
@@ -172,7 +174,7 @@ DOM overlays:
 |---|---|
 | top left | session id, copy button (`navigator.clipboard`), export (link to the export endpoint), import (file input → POST), "offline" badge while the tube is disconnected, one-line message for errors |
 | bottom left | tools: select, text, frame, shape (picker: circle, rectangle, star, arrow), sticky note, connection; undo ↶ and redo ↷ |
-| centered above the selection's bounding box (kept inside the window) | a fill button showing the current fill that opens the swatches (when every selected object is a shape or sticky), an Order button that opens the layering moves (to front ⤒, forward ↑, backward ↓, to back ⤓; hidden while all is locked), lock/unlock, group/ungroup, delete. A menu stays open for more picks and closes on its button, on the other menu's button, on pressing the board or when the selection changes |
+| centered above the selection's bounding box (kept inside the window) | a fill button (a dot in the current fill) that opens the swatches (when every selected object is a shape or sticky), a text colour button (an A over a bar in the current colour) that opens automatic plus seven colours (when every selected object is a text or sticky), an Order button that opens the layering moves (to front ⤒, forward ↑, backward ↓, to back ⤓; hidden while all is locked), lock/unlock, group/ungroup, delete. Menus open above the toolbar, below it when it is too close to the top; one stays open for more picks and closes on its button, on another menu's button, on pressing the board or when the selection changes |
 | over the edited object | `<textarea>` while editing text |
 
 ### Pointer

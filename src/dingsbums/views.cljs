@@ -86,6 +86,14 @@
 
 (def ^:private mixed-fill "conic-gradient(#e57373, #fff176, #81c784, #64b5f6, #ba68c8, #e57373)")
 
+(defn- common-color
+  "The CSS background for a set of colours: the one colour, mixed-fill, or none."
+  [cs none]
+  (cond (< 1 (count cs)) mixed-fill (first cs) (first cs) :else none))
+
+;; a menu needs about this much room above the toolbar, else it opens below
+(def ^:private menu-room 170)
+
 (defc selection-toolbar [] [sel [:selection] objects [:objects] cam [:camera] drag [:drag] editing [:editing]
                             sel-menu [:sel-menu] viewport [:viewport]
                             vw (first viewport)
@@ -100,24 +108,35 @@
                                      (and (seq os) (every? #(= :shape (:kind %)) os)) model/swatches
                                      (and (seq os) (every? #(#{:shape :sticky} (:kind %)) os)) (rest model/swatches))
                             fills (set (map :fill os))
+                            texts? (boolean (and (seq os) (every? #(model/text-kinds (:kind %)) os)))
+                            text-colors (set (map :color os))
                             locked? (boolean (and (seq os) (every? :locked? os)))
                             groupable? (>= (count (remove #(= :connection (:kind %)) os)) 2)
                             grouped? (boolean (some :group os))]
   ;; centered over the selection, kept 8px inside the viewport
-  [:div.sel-toolbar {:hidden (not show?)
+  [:div.sel-toolbar {:hidden (not show?) :class (when (< top menu-room) "down")
                      :style {:left (str cx "px") :top (str top "px")
                              :transform (str "translateX(clamp(" (- 8 cx) "px, -50%, calc(" (- vw 8 cx) "px - 100%)))")}}
    [:span.menu {:hidden (empty? colors)}
-    [:button.swatch {:title "Fill" :class (when (= menu :fill) "active")
-                     :style {:background (cond (< 1 (count fills)) mixed-fill (first fills) (first fills) :else "transparent")}
-                     :on-click [:selection/menu :fill]}]
+    [:button.menu-button {:title "Fill" :class (when (= menu :fill) "active") :on-click [:selection/menu :fill]}
+     [:span.dot {:style {:background (common-color fills "transparent")}}]]
     (when (= menu :fill)
       [:div.sel-menu
        (for [c colors]
          ^{:key (str c)} [:button.swatch {:title (or c "No fill") :style {:background-color (or c "transparent")}
                                           :on-click [:selection/fill c]}])])]
+   [:span.menu {:hidden (not texts?)}
+    [:button.menu-button {:title "Text colour" :class (when (= menu :text) "active") :on-click [:selection/menu :text]}
+     [:span.text-a "A" [:span.bar {:style {:background (common-color text-colors "currentColor")}}]]]
+    (when (= menu :text)
+      [:div.sel-menu
+       (for [c model/text-colors]
+         ^{:key (str c)} [:button.swatch {:title (or c "Automatic") :class (when-not c "auto")
+                                          :style {:background-color (or c "transparent")}
+                                          :on-click [:selection/text-color c]}
+                          (when-not c "A")])])]
    [:span.menu {:hidden locked?}
-    [:button {:title "Order" :class (when (= menu :layer) "active") :on-click [:selection/menu :layer]} "Order ▾"]
+    [:button {:title "Order" :class (when (= menu :layer) "active") :on-click [:selection/menu :layer]} "Order"]
     (when (= menu :layer)
       [:div.sel-menu.column
        (for [[k label icon key] layer-moves]
@@ -144,9 +163,7 @@
                       style {:left (str (first pos) "px") :top (str (second pos) "px")
                              :width (str (* zoom (:w o)) "px") :height (str (* zoom (:h o)) "px")
                              :font-family board/font-family :font-size (str (* zoom size) "px") :padding (str (* zoom pad) "px")
-                             :color (if-let [b (if (= :sticky (:kind o)) o (geom/backdrop objects o))]
-                                      (model/ink (:fill b))
-                                      "var(--text-strong)")}]
+                             :color (or (model/text-color objects o) "var(--text-strong)")}]
   [:textarea.text-editor {:style style :value draft :ref focus!
                           :on-input (fn [^js e] (dispatch [:edit/input (.. e -target -value)]))
                           :on-blur [:edit/commit] :on-keydown edit-keydown}])

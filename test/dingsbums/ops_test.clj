@@ -35,6 +35,8 @@
   (is (ops/valid-object? {:id "i" :kind :image :x 0 :y 0 :w 1 :h 1 :src "data:image/png;base64,AA"}))
   (is (not (ops/valid-object? {:id "q" :kind :sticky :z "x"})) "a string :z would break sorting for every client")
   (is (not (ops/valid-object? {:id "q" :kind :text :text 42})))
+  (is (ops/valid-object? {:id "q" :kind :text :text "x" :color "#e57373"}))
+  (is (not (ops/valid-object? {:id "q" :kind :text :color 42})))
   (is (not (ops/valid-object? {:id "q" :kind :blob})) "unknown kind")
   (is (not (ops/valid-object? {:id "q" :kind :shape :shape :hexagon})))
   (is (not (ops/valid-object? {:id "q" :kind :text :nested [[[[1]]]]})) "unknown keys")

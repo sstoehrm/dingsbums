@@ -8,7 +8,7 @@
    :shape #{:circle :rect :star :arrow}
    :x number? :y number? :w number? :h number? :z number?
    :fill #(or (nil? %) (string? %))
-   :text string? :src string? :from string? :to string? :group string?
+   :text string? :color string? :src string? :from string? :to string? :group string?
    :locked? boolean?})
 
 (defn valid-object?

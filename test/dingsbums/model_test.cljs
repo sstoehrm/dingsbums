@@ -44,7 +44,21 @@
     (is (= {"b" nil "ab" nil} (m/delete-changes locked #{"a" "b"})) "locked a stays; the connection goes with b")
     (is (= {"b" (assoc b :fill "#e57373")} (m/fill-changes locked #{"a" "b" "ab"} "#e57373")) "locked and unfillable skipped")
     (is (= {} (m/fill-changes objs #{"a"} nil)) "a sticky keeps a fill")
+    (let [t {:id "t" :kind :text :text "x"}
+          os (assoc locked "t" t)]
+      (is (= {"t" (assoc t :color "#e57373")} (m/text-color-changes os #{"a" "b" "t"} "#e57373"))
+          "locked and textless skipped")
+      (is (= {"t" t} (m/text-color-changes (assoc os "t" (assoc t :color "#000000")) #{"t"} nil)) "nil: automatic again"))
     (is (= #{"b"} (set (keys (m/movable locked #{"a" "b" "ab"})))))))
+
+(deftest text-color
+  (let [t {:id "t" :kind :text :x 10 :y 10 :w 20 :h 20 :z 5}
+        dark (assoc b :x 0 :y 0 :w 100 :h 100 :fill "#000000")]
+    (is (nil? (m/text-color {"t" t} t)) "plain text: the theme's colour")
+    (is (= "#222" (m/text-color objs a)) "sticky: ink for its fill")
+    (is (= "#fff" (m/text-color {"t" t "b" dark} t)) "on a dark shape: light ink")
+    (is (= "#e57373" (m/text-color {"t" t "b" dark} (assoc t :color "#e57373"))) "a chosen colour wins")
+    (is (= "#e57373" (m/text-color objs (assoc a :color "#e57373"))))))
 
 (deftest text-changes
   (let [t {:id "t" :kind :text :text "x"}]
