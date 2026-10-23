@@ -140,11 +140,22 @@ rather than by hand.
    dots. Told not to ask: choose, and say what you chose when handing over.
 2. Write `session.edn` into a new folder outside the repo (a scratch or
    the user's chosen directory), pictures into `images/` beside it.
-3. Pack it, from the dingsbums repo root:
+3. Pack it with `pack.clj` (beside this file). It needs babashka and
+   dingsbums' code on the classpath: `src` in a dingsbums checkout, else
+   the installed jar.
 
    ```sh
+   # in the dingsbums repo, from its root
    bb -cp src .claude/skills/dingsbums-board/pack.clj <folder> [out.tar]
+   # anywhere else (installed with dingsbums' install.sh)
+   bb -cp ~/.dingsbums/dingsbums.jar ~/.claude/skills/dingsbums-board/pack.clj <folder> [out.tar]
    ```
+
+   No jar: download one to scratch, `curl -fsSLo <scratch>/dingsbums.jar
+   https://github.com/sstoehrm/dingsbums/releases/latest/download/dingsbums.jar`.
+   Releases up to v0.3.0 don't know `:dot`, `:counter`, `:scale-x` and
+   `:scale-xy`: pack then reports them dropped, and so would a server that
+   old. Say so rather than pack without them.
 
    It writes the tar (default `<folder>/board.tar`), then reads it back
    through the server's import and lists every object it would drop, every

@@ -3,6 +3,9 @@
 ;;
 ;;   bb -cp src .claude/skills/dingsbums-board/pack.clj <folder> [out.tar]
 ;;
+;; from a dingsbums checkout's root; elsewhere put the dingsbums jar on the
+;; classpath instead of src (-cp ~/.dingsbums/dingsbums.jar).
+;;
 ;; <folder> holds session.edn and, for pictures, images/; the tar goes to
 ;; <folder>/board.tar unless out.tar is given. Exits 1 when an
 ;; object would be dropped, a connection misses an end or a picture is missing.
@@ -14,7 +17,7 @@
 
 (let [[dir out] *command-line-args*
       _ (when-not dir
-          (println "usage: bb -cp src .claude/skills/dingsbums-board/pack.clj <folder> [out.tar]")
+          (println "usage: bb -cp <src or dingsbums.jar> pack.clj <folder> [out.tar]")
           (System/exit 2))
       out (or out (str (fs/path dir "board.tar")))
       edn-file (fs/file dir "session.edn")

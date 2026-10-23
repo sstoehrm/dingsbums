@@ -14,6 +14,8 @@
   &nbsp;·&nbsp;
   <a href="#installation">Installation</a>
   &nbsp;·&nbsp;
+  <a href="#boards-from-claude-code">Boards from Claude Code</a>
+  &nbsp;·&nbsp;
   <a href="#development">Development</a>
   &nbsp;·&nbsp;
   <a href="docs/superpowers/specs/2026-10-06-whiteboard-design.md">Design</a>
@@ -64,11 +66,8 @@ can't think of right now. That's what a whiteboard is full of.
   shape), N sticky note, L connection, D dot, C counting box, X scale, Y
   two-axis scale. Picking the active tool again, by key
   or button, goes back to Select; a hint at the bottom says what to do.
-- Export a board as a `.tar` and import it again. To prepare one, ask
-  [Claude Code](https://claude.com/claude-code) in this repo for the board
-  you need (a retro, a dot vote, a diagram): its
-  [dingsbums-board skill](.claude/skills/dingsbums-board/SKILL.md) writes
-  the `.tar` to import.
+- Export a board as a `.tar` and import it again, or have Claude Code
+  prepare one: see [Boards from Claude Code](#boards-from-claude-code).
 - A quiet parchment look by default, twelve more colour themes, or follow
   the OS light/dark setting. Themes only change the colours.
 
@@ -122,6 +121,34 @@ Behind Caddy under `/dingsbums/`:
 
 The `redir` matters: without the trailing slash the page's relative URLs
 miss the prefix.
+
+## Boards from Claude Code
+
+The [dingsbums-board skill](.claude/skills/dingsbums-board/SKILL.md) lets
+[Claude Code](https://claude.com/claude-code) prepare a board for you: ask
+for "a retro for six people with a dot vote" or "an effort × impact
+workshop", and it writes a `.tar` you load with **Import**. Import replaces
+what is on the board, so use a fresh session.
+
+**In a checkout of this repo** there is nothing to install: Claude Code
+picks the skill up from `.claude/skills/` and packs with the code in `src/`.
+
+**Everywhere else**, install it as a personal skill (or into another
+project's `.claude/skills/`):
+
+    mkdir -p ~/.claude/skills/dingsbums-board
+    for f in SKILL.md pack.clj; do
+      curl -fsSL "https://raw.githubusercontent.com/sstoehrm/dingsbums/main/.claude/skills/dingsbums-board/$f" \
+        -o ~/.claude/skills/dingsbums-board/$f
+    done
+
+Claude Code lists it from the next session on. Packing a board needs
+babashka and the dingsbums jar, which [install.sh](#installation) puts in
+`~/.dingsbums/dingsbums.jar` (any `dingsbums.jar` from the
+[releases](https://github.com/sstoehrm/dingsbums/releases) works too).
+Dots, counting boxes and scales need a release newer than v0.3.0, for
+packing and on the server you import into. Run the same commands again to
+update the skill.
 
 ## Development
 
