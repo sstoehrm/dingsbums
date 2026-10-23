@@ -215,8 +215,8 @@
   [:div.sel-toolbar {:hidden (not show?) :class (when (< top menu-room) "down")
                      :style {:left (str cx "px") :top (str top "px")
                              :transform (str "translateX(clamp(" (- 8 cx) "px, -50%, calc(" (- vw 8 cx) "px - 100%)))")}}
-   [:button.grip {:hidden (not movable?) :title "Move: drag" :aria-label "Move"
-                  :on-pointerdown #(board/grab! % :pointer/grip)}
+   [:button.grip {:hidden (not movable?) :title "Move: drag" :aria-label "Move" :tabindex -1
+                  :on-pointerdown board/grab!}
     (icons :grip)]
    [:span.menu {:hidden (empty? colors)}
     [:button.menu-button {:title "Fill" :class (when (= menu :fill) "active") :on-click [:selection/menu :fill]}

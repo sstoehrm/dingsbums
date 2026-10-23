@@ -182,24 +182,30 @@
   {:sx x :sy y :button (.-button e) :shift? (.-shiftKey e) :ctrl? (or (.-ctrlKey e) (.-metaKey e))
    :t (.-timeStamp e)})
 
+;; the last press was on the grip, not the board: its clicks land here too
+(defonce ^:private grabbed? (volatile! false))
+
 (defn- on-down [^js e {:keys [x y]}]
+  (vreset! grabbed? false)
   (.setPointerCapture (.-target e) (.-pointerId e))
   (dispatch [:pointer/down (pointer e x y)]))
 
 (defn grab!
-  "Hands a pointer pressed outside the board (the selection toolbar's grip) to
-  it: event is dispatched with the board's coordinates, and the pointer's moves
-  and release then reach the board as if pressed on it."
-  [^js e event]
+  "Hands a pointer pressed on the selection toolbar's grip to the board: the
+  grip's press is dispatched with the board's coordinates, and the pointer's
+  moves and release then reach the board as if pressed on it."
+  [^js e]
   (when-let [^js c (.querySelector js/document ".board")]
     (.preventDefault e)
+    (vreset! grabbed? true)
     (.setPointerCapture c (.-pointerId e))
     (let [r (.getBoundingClientRect c)]
-      (dispatch [event (pointer e (- (.-clientX e) (.-left r)) (- (.-clientY e) (.-top r)))]))))
+      (dispatch [:pointer/grip (pointer e (- (.-clientX e) (.-left r)) (- (.-clientY e) (.-top r)))]))))
 
 (defn- on-move [^js e {:keys [x y]}] (dispatch [:pointer/move (pointer e x y)]))
 (defn- on-up [^js e {:keys [x y]}] (dispatch [:pointer/up (pointer e x y)]))
-(defn- on-dblclick [^js e {:keys [x y]}] (dispatch [:pointer/dblclick (pointer e x y)]))
+(defn- on-dblclick [^js e {:keys [x y]}]
+  (when-not @grabbed? (dispatch [:pointer/dblclick (pointer e x y)])))
 
 (defn- on-wheel [^js e {:keys [x y]}]
   (.preventDefault e)

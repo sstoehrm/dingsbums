@@ -195,12 +195,13 @@
 (deftest grip-moving
   (testing "the toolbar's grip moves the selection from wherever it is grabbed, zoomed out too"
     (let [db (assoc with-objs :selection #{"a" "b"} :sel-menu {:menu :layer :for #{"a" "b"}}
-                              :camera {:x 0 :y 0 :zoom 0.5})
+                              :camera {:x 0 :y 0 :zoom 0.5} :message "Image too large")
           down (ev/grip-down db (pe 400 -40))
           fx1 (ev/pointer-move (:db down) (pe 420 -30 :t 40))
           fx2 (ev/pointer-up (:db fx1) (pe 420 -30 :t 50))]
       (is (= :move (get-in down [:db :drag :type])))
       (is (nil? (get-in down [:db :sel-menu])) "an open menu closes")
+      (is (nil? (get-in down [:db :message])) "the message goes, as on the board")
       (is (= [[40 20] [240 20]] (map (juxt :x :y) (map #(get-in fx2 [:db :objects %]) ["a" "b"]))))
       (is (= 2 (count (second (first (:tube/send fx1))))) "sent live")
       (is (= 1 (count (get-in fx2 [:db :history :undo]))))))

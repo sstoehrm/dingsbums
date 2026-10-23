@@ -264,7 +264,7 @@
   [db {:keys [button t] :as e}]
   (let [start (model/movable (:objects db) (:selection db))]
     (when (and (= button 0) (seq start))
-      {:db (assoc db :sel-menu nil :drag {:type :move :origin (world db e) :start start :last-sent t})})))
+      {:db (assoc db :message nil :sel-menu nil :drag {:type :move :origin (world db e) :start start :last-sent t})})))
 
 (defn- live-update
   "Applies a gesture's changes locally; sends their geometry when the last send is
