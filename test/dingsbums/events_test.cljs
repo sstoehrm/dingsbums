@@ -8,6 +8,7 @@
             [dingsbums.events :as ev]
             [dingsbums.geom :as geom]
             [dingsbums.log]
+            [dingsbums.ops :as ops]
             [dingsbums.themes :as themes]))
 
 (def board (assoc ev/initial-db :route :board :session "s1"))
@@ -472,6 +473,21 @@
   (is (nil? (ev/name-save board)) "nor no name")
   (is (= "a b" (get-in (ev/name-save (:db (ev/name-input board "a\tb"))) [:db :name])) "no control characters")
   (is (= 32 (count (get-in (ev/name-save (:db (ev/name-input board (apply str (repeat 40 "x"))))) [:db :name]))))
+  (testing "shortening never cuts an emoji in half"
+    (let [x31 (apply str (repeat 31 "x"))]
+      (is (= x31 (ev/clean-name (str x31 "\uD83D\uDE00"))))
+      (is (= (apply str (repeat 30 "x")) (ev/clean-name (str (apply str (repeat 30 "x")) " \uD83D\uDE00"))) "nor ends in a space")
+      (is (= (str "Ada" "\uD83D\uDE00") (ev/clean-name "Ada\uD83D\uDE00")))
+      (is (= "A b" (ev/clean-name "A\uDE00b\uD83D")) "a stray half is dropped like a control character")
+      (is (every? ops/valid-name? (map #(ev/clean-name (str (apply str (repeat % "x")) (apply str (repeat 20 "\uD83D\uDE00")))) (range 33))))))
+  (testing "in the browser, as on the server"
+    (let [h "\uD83D" l "\uDE00" e (str h l)]
+      (doseq [[s blanked] [[(str "a" e "b") (str "a" e "b")] [(str e "\t" e) (str e " " e)]
+                           [(str h "a") " a"] [(str "a" h "b") "a b"] [(str "a" h) "a "]
+                           [(str l "a") " a"] [(str "a" l "b") "a b"] [(str "a" l) "a "]
+                           [(str e l) (str e " ")] [(str h e) (str " " e)] [(str l h) "  "]]]
+        (is (= blanked (ops/blank-junk s)) "only stray halves of an emoji become spaces")
+        (is (= (= s blanked) (ops/valid-name? s))))))
   (is (= [[:presence/update {:name "Bo"}]]
          (:tube/send (ev/name-save (:db (ev/name-input (assoc board :online? true) "Bo"))))))
   (testing "renaming starts from the name and can be cancelled"

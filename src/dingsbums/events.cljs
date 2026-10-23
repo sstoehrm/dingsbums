@@ -248,11 +248,12 @@
   (and (= :board route) (or (nil? name) (some? naming))))
 
 (defn clean-name
-  "s as a name: control characters as spaces, trimmed, at most 32 characters;
-  nil when blank."
+  "s as a name: control characters as spaces, trimmed, at most 32 UTF-16 code
+  units, never ending in half an emoji; nil when blank."
   [s]
-  (let [n (str/trim (str/replace (str s) ops/name-control-chars " "))]
-    (when-not (str/blank? n) (subs n 0 (min (count n) ops/max-name-length)))))
+  (let [n (str/trim (ops/blank-junk (str s)))]
+    (when-not (str/blank? n)
+      (str/trimr (ops/blank-junk (subs n 0 (min (count n) ops/max-name-length)))))))
 
 (defn name-edit [db] {:db (assoc db :naming (or (:name db) ""))})
 (defn name-input [db s] {:db (assoc db :naming s)})
