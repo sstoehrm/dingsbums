@@ -64,7 +64,11 @@ can't think of right now. That's what a whiteboard is full of.
   shape), N sticky note, L connection, D dot, C counting box, X scale, Y
   two-axis scale. Picking the active tool again, by key
   or button, goes back to Select; a hint at the bottom says what to do.
-- Export a board as a `.tar` and import it again.
+- Export a board as a `.tar` and import it again. To prepare one, ask
+  [Claude Code](https://claude.com/claude-code) in this repo for the board
+  you need (a retro, a dot vote, a diagram): its
+  [dingsbums-board skill](.claude/skills/dingsbums-board/SKILL.md) writes
+  the `.tar` to import.
 - A quiet parchment look by default, twelve more colour themes, or follow
   the OS light/dark setting. Themes only change the colours.
 
