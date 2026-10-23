@@ -124,6 +124,21 @@
     (is (= objs (:objects (first (m/undo db3)))))
     (is (= [db []] (m/finish-gesture db start)) "no movement, no entry")))
 
+(deftest a-held-key-is-one-history-entry
+  (let [tap #(first (m/nudge % #{"a"} 1 0 false))
+        hold #(first (m/nudge % #{"a"} 1 0 true))
+        held (-> db tap hold hold)]
+    (is (= 2 (count (get-in (-> db tap tap) [:history :undo]))) "each tap is a step")
+    (is (= 3 (get-in held [:objects "a" :x])))
+    (is (= 1 (count (get-in held [:history :undo]))))
+    (is (= a (get-in (first (m/undo held)) [:objects "a"])) "undo goes back to before the hold")
+    (is (= 2 (count (get-in (-> db tap (m/nudge #{"b"} 1 0 true) first) [:history :undo])))
+        "other objects: a step of their own")
+    (is (= 2 (count (get-in (-> db tap tap m/undo first hold) [:history :undo])))
+        "after an undo the hold does not extend the step below it")
+    (is (= [:op/patch [{:id "a" :x 1 :y 0 :w 10 :h 10}]] (first (second (m/nudge db #{"a" "ab"} 1 0 false)))))
+    (is (= [db []] (m/nudge db #{"ab"} 1 0 false)) "connections follow their ends, nothing to move")))
+
 (deftest moves-apply-to-the-current-state
   (let [start (m/movable objs #{"a" "b"})]
     (is (= {"b" (assoc b :x 55)} (m/moved (dissoc objs "a") start 5 0)) "an object deleted meanwhile stays deleted")

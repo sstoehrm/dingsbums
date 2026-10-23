@@ -38,6 +38,14 @@
   (is (= [:space true] (ev/key-action {:key " "})))
   (is (= [:selection/layer :front] (ev/key-action {:key "Home"})))
   (is (= [:selection/layer :back] (ev/key-action {:key "End"})))
+  (is (= [:selection/nudge -1 0 false] (ev/key-action {:key "ArrowLeft"})))
+  (is (= [:selection/nudge 1 0 false] (ev/key-action {:key "ArrowRight"})))
+  (is (= [:selection/nudge 0 -1 false] (ev/key-action {:key "ArrowUp"})))
+  (is (= [:selection/nudge 0 1 false] (ev/key-action {:key "ArrowDown"})))
+  (is (= [:selection/nudge 0 10 false] (ev/key-action {:key "ArrowDown" :shift? true})) "Shift: 10")
+  (is (= [:selection/nudge 1 0 true] (ev/key-action {:key "ArrowRight" :repeat? true})) "held keys repeat")
+  (is (nil? (ev/key-action {:key "ArrowLeft" :alt? true})) "Alt+arrow is the browser's back/forward")
+  (is (nil? (ev/key-action {:key "ArrowLeft" :ctrl? true})))
   (is (nil? (ev/key-action {:key "c" :ctrl? true})) "browser copy untouched")
   (is (nil? (ev/key-action {:key "a"}))))
 
@@ -295,6 +303,21 @@
       (is (= [[:op/upsert [(assoc sticky :z 3)]]] (:tube/send fx)))
       (is (= 1 (count (get-in fx [:db :history :undo])))))
     (is (= {:selection #{} :tool :select} (select-keys (:db (ev/selection-clear (assoc db :tool :text))) [:selection :tool])))))
+
+(deftest arrow-keys-nudge
+  (let [fx (ev/selection-nudge (assoc with-objs :selection #{"a" "b"}) 10 -1 false)]
+    (is (= [[10 -1] [210 -1]] (map #(mapv (get-in fx [:db :objects %]) [:x :y]) ["a" "b"])))
+    (is (= #{{:id "a" :x 10 :y -1 :w 100 :h 100} {:id "b" :x 210 :y -1 :w 100 :h 100}}
+           (set (second (first (:tube/send fx))))))
+    (is (= {"a" sticky "b" shape} (get-in (ev/history-undo (:db fx)) [:db :objects])) "one undo step back"))
+  (testing "an image sends its geometry, never its :src"
+    (let [img {:id "i" :kind :image :x 0 :y 0 :w 10 :h 10 :z 1 :src "data:image/png;base64,AAAA"}
+          fx (ev/selection-nudge (assoc board :objects {"i" img} :selection #{"i"}) 1 0 false)]
+      (is (= [[:op/patch [{:id "i" :x 1 :y 0 :w 10 :h 10}]]] (:tube/send fx)))))
+  (testing "locked objects stay put; nothing selected or a drag going on: nothing happens"
+    (is (nil? (ev/selection-nudge (-> with-objs (assoc :selection #{"a"}) (assoc-in [:objects "a" :locked?] true)) 1 0 false)))
+    (is (nil? (ev/selection-nudge with-objs 1 0 false)))
+    (is (nil? (ev/selection-nudge (:db (ev/pointer-down with-objs (pe 10 10))) 1 0 false)))))
 
 (deftest undo-redo-events
   (let [fx (ev/selection-delete (assoc with-objs :selection #{"a"}))
