@@ -501,7 +501,7 @@
             (is (nil? (ev/cursor-flush (:db fx6) 200)) "nothing left")
             (is (nil? (ev/cursor-flush (:db (ev/pointer-leave (:db fx5))) 193)) "left the board meanwhile")
             (let [b (assoc (:db (ev/route-changed (:db fx5) "s2")) :route :board :online? true)]
-              (is (nil? (:tube/send (ev/cursor-flush b 193))) "nor to the next board's peers")
+              (is (nil? (ev/cursor-flush b 193)) "nor to the next board's peers")
               (is (= ##-Inf (:cursor-sent b)) "and the throttle starts over"))
             (is (nil? (:tube/send (ev/pointer-move (:db fx6) (pe 20 20 :t 200)))) "the flush counts as a send")
             (is (some? (:tube/send (ev/pointer-move (:db fx6) (pe 20 20 :t 226)))))))))
