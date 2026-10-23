@@ -124,31 +124,33 @@ miss the prefix.
 
 ## Boards from Claude Code
 
-The [dingsbums-board skill](.claude/skills/dingsbums-board/SKILL.md) lets
-[Claude Code](https://claude.com/claude-code) prepare a board for you: ask
-for "a retro for six people with a dot vote" or "an effort × impact
-workshop", and it writes a `.tar` you load with **Import**. Import replaces
-what is on the board, so use a fresh session.
+This repo is a [Claude Code](https://claude.com/claude-code) plugin
+marketplace. Its `dingsbums` plugin has a
+[board skill](plugins/dingsbums/skills/board/SKILL.md) that prepares a
+board for you: ask for "a retro for six people with a dot vote" or "an
+effort × impact workshop", and it writes a `.tar` you load with **Import**.
+Import replaces what is on the board, so use a fresh session.
 
-**In a checkout of this repo** there is nothing to install: Claude Code
-picks the skill up from `.claude/skills/` and packs with the code in `src/`.
+Install it in Claude Code:
 
-**Everywhere else**, install it as a personal skill (or into another
-project's `.claude/skills/`):
+    /plugin install dingsbums --marketplace sstoehrm/dingsbums
 
-    mkdir -p ~/.claude/skills/dingsbums-board
-    for f in SKILL.md pack.clj; do
-      curl -fsSL "https://raw.githubusercontent.com/sstoehrm/dingsbums/main/.claude/skills/dingsbums-board/$f" \
-        -o ~/.claude/skills/dingsbums-board/$f
-    done
+Before Claude Code 2.1.275, in two steps:
 
-Claude Code lists it from the next session on. Packing a board needs
-babashka and the dingsbums jar, which [install.sh](#installation) puts in
-`~/.dingsbums/dingsbums.jar` (any `dingsbums.jar` from the
-[releases](https://github.com/sstoehrm/dingsbums/releases) works too).
-Dots, counting boxes and scales need a release newer than v0.3.0, for
-packing and on the server you import into. Run the same commands again to
-update the skill.
+    /plugin marketplace add sstoehrm/dingsbums
+    /plugin install dingsbums@dingsbums
+
+Or from a shell: `claude plugin marketplace add sstoehrm/dingsbums --sparse
+.claude-plugin plugins` (the sparse checkout skips the app) and `claude
+plugin install dingsbums@dingsbums`. The plugin's version is the dingsbums
+release it comes with; `/plugin update dingsbums` gets the next one.
+
+Packing a board needs babashka and the dingsbums jar, which
+[install.sh](#installation) puts in `~/.dingsbums/dingsbums.jar` (any
+`dingsbums.jar` from the [releases](https://github.com/sstoehrm/dingsbums/releases)
+works too; in a checkout the skill uses `src/`). Dots, counting boxes and
+scales need a release newer than v0.3.0, for packing and on the server you
+import into.
 
 ## Development
 
@@ -177,7 +179,9 @@ every push to main and daily, see
 
 Releasing: `bb release vX.Y.Z` on a clean main that matches origin tags and
 pushes; the tag's workflow tests, builds `dingsbums.jar` and publishes the
-GitHub release.
+GitHub release. The Claude Code plugin is released with it: set
+`plugins/dingsbums/.claude-plugin/plugin.json`'s version to X.Y.Z in a PR
+first (the task refuses otherwise), so `/plugin update` offers it.
 
 ## Privacy
 

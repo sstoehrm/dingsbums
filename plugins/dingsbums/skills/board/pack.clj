@@ -1,10 +1,10 @@
 ;; Packs a generated board into the .tar dingsbums' Import takes, then reads
 ;; it back through the server's import to show what would not survive.
 ;;
-;;   bb -cp src .claude/skills/dingsbums-board/pack.clj <folder> [out.tar]
+;;   bb -cp ~/.dingsbums/dingsbums.jar pack.clj <folder> [out.tar]
 ;;
-;; from a dingsbums checkout's root; elsewhere put the dingsbums jar on the
-;; classpath instead of src (-cp ~/.dingsbums/dingsbums.jar).
+;; with the jar dingsbums' install.sh puts there, or -cp src from a dingsbums
+;; checkout's root.
 ;;
 ;; <folder> holds session.edn and, for pictures, images/; the tar goes to
 ;; <folder>/board.tar unless out.tar is given. Exits 1 when an

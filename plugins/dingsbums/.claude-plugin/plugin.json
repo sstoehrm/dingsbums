@@ -1,0 +1,12 @@
+{
+  "name": "dingsbums",
+  "version": "0.4.0",
+  "description": "Prepares dingsbums boards (retros, dot votes, workshops, diagrams) as a .tar to load with Import",
+  "author": {
+    "name": "Sören Stöhrmann",
+    "url": "https://github.com/sstoehrm"
+  },
+  "homepage": "https://github.com/sstoehrm/dingsbums#boards-from-claude-code",
+  "repository": "https://github.com/sstoehrm/dingsbums",
+  "license": "MIT"
+}

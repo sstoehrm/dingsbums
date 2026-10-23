@@ -1,5 +1,5 @@
 ---
-name: dingsbums-board
+name: board
 description: Use when asked to generate, draft or template a dingsbums board — a retro, kanban, dot-voting round, workshop canvas, diagram or any prepared layout — as a file the user uploads with the board's Import button. Writes session.edn in dingsbums' object format and packs it into the .tar Import takes.
 ---
 
@@ -140,15 +140,15 @@ rather than by hand.
    dots. Told not to ask: choose, and say what you chose when handing over.
 2. Write `session.edn` into a new folder outside the repo (a scratch or
    the user's chosen directory), pictures into `images/` beside it.
-3. Pack it with `pack.clj` (beside this file). It needs babashka and
-   dingsbums' code on the classpath: `src` in a dingsbums checkout, else
-   the installed jar.
+3. Pack it with `pack.clj`, in this skill's directory (the base directory
+   given when the skill loads). It needs babashka and dingsbums' code on
+   the classpath: the jar dingsbums' install.sh puts in `~/.dingsbums`, or
+   `src` when working in a dingsbums checkout.
 
    ```sh
-   # in the dingsbums repo, from its root
-   bb -cp src .claude/skills/dingsbums-board/pack.clj <folder> [out.tar]
-   # anywhere else (installed with dingsbums' install.sh)
-   bb -cp ~/.dingsbums/dingsbums.jar ~/.claude/skills/dingsbums-board/pack.clj <folder> [out.tar]
+   bb -cp ~/.dingsbums/dingsbums.jar <skill dir>/pack.clj <folder> [out.tar]
+   # in a dingsbums checkout, from its root
+   bb -cp src plugins/dingsbums/skills/board/pack.clj <folder> [out.tar]
    ```
 
    No jar: download one to scratch, `curl -fsSLo <scratch>/dingsbums.jar
