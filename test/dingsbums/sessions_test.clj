@@ -7,7 +7,8 @@
 
 (deftest create-and-object-ops
   (let [m (s/create {} "s1" 100)]
-    (is (= {:objects {} :log {} :clients {} :empty-since 100} (get m "s1")))
+    (is (= {:objects {} :log {} :clients {} :empty-since 100} (dissoc (get m "s1") :lock)))
+    (is (not= (get-in m ["s1" :lock]) (get-in (s/create m "s2" 100) ["s2" :lock])) "a lock of its own")
     (is (= {"a" a "ab" ab} (get-in (s/apply-op m "s1" [:op/upsert [a ab]] "Ada" 10) ["s1" :objects])))
     (is (= {} (get-in (-> m (s/apply-op "s1" [:op/upsert [a ab]] "Ada" 10) (s/apply-op "s1" [:op/delete ["a"]] "Ada" 20))
                       ["s1" :objects])))

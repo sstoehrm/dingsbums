@@ -130,6 +130,34 @@
     (send! c [:op/upsert [a]])
     (is (= [:session/snapshot {"a" a}] (hello! c)))))
 
+(deftest an-op-during-hello-reaches-the-newcomer-once
+  (let [sid (create!) c1 (connect sid) c2 (connect sid :log)
+        snapshot-due (promise) go-on (promise)
+        real-send! http/send!]
+    (hello! c1)
+    (with-redefs [http/send! (fn [ch msg]
+                               (when (str/starts-with? msg "[:session/snapshot")
+                                 (deliver snapshot-due true) @go-on)
+                               (real-send! ch msg))]
+      (send! c2 [:session/hello])
+      (deref snapshot-due 2000 nil)
+      ;; c1's change while c2's snapshot is on its way
+      (send! c1 [:op/upsert [a]])
+      (loop [n 0] (when (and (< n 30) (not (get-in @s/sessions [sid :objects "a"]))) (Thread/sleep 10) (recur (inc n))))
+      (deliver go-on true)
+      ;; c2's board and history after all it got
+      (let [[objects lg] (loop [objects nil lg nil]
+                           (let [[ev x] (recv c2)]
+                             (case ev
+                               :session/snapshot (recur x lg)
+                               :log/all (recur objects x)
+                               :log/add (recur objects (reduce (fn [l [id e]] (update l id (fnil conj []) e)) lg x))
+                               :op/upsert (recur (merge objects (into {} (map (juxt :id identity)) x)) lg)
+                               (:presence/roster :presence/update) (recur objects lg)
+                               nil [objects lg])))]
+        (is (= {"a" a} objects) "a stale snapshot does not undo the change")
+        (is (= [:created] (mapv :what (get lg "a"))) "the change is in the history once")))))
+
 (deftest unknown-session-is-told-and-closed
   (let [c (connect "nope")]
     (is (= [:session/missing] (recv c)))

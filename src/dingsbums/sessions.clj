@@ -1,6 +1,7 @@
 (ns dingsbums.sessions
-  "All sessions in one atom: {sid {:objects {id obj} :log log :logged entries :clients {ch user} :empty-since ms-or-nil}}
-  (log: see dingsbums.log; logged: the entries the last op added to it),
+  "All sessions in one atom: {sid {:objects {id obj} :log log :logged entries :clients {ch user} :empty-since ms-or-nil :lock obj}}
+  (log: see dingsbums.log; logged: the entries the last op added to it; lock:
+  what server.clj holds to send a session's changes in order),
   a user being {:id :color} plus the presence it sent (:name :cursor :selection).
   The fns below are pure over that map; server.clj swap!s them in. Every fn is a
   no-op for an unknown sid."
@@ -13,7 +14,7 @@
 
 (defn new-id [] (str (random-uuid)))
 
-(defn create [m sid now] (assoc m sid {:objects {} :log {} :clients {} :empty-since now}))
+(defn create [m sid now] (assoc m sid {:objects {} :log {} :clients {} :empty-since now :lock (Object.)}))
 
 (defn- when-exists [m sid f] (if (contains? m sid) (f m) m))
 

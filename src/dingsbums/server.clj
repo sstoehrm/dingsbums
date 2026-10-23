@@ -43,10 +43,16 @@
   (doseq [ch (keys (get-in @s/sessions [sid :clients])) :when (not= ch except)]
     (http/send! ch msg)))
 
-(def ^:private presence-lock
-  "Held while presence goes out and around leaving, so a roster and the
-  updates and leavings after it reach every client in the order they happened."
-  (Object.))
+(def ^:private no-lock (Object.))
+
+(defn- in-order
+  "(f) holding session sid's lock (a stand-in for an unknown sid). Held from
+  changing a session to sending what changed, and while a newcomer is sent
+  the board, log and roster: so it gets each change once, in those or after
+  them, and every client hears of changes in the order they happened."
+  [sid f]
+  (let [l (or (get-in @s/sessions [sid :lock]) no-lock)]
+    (locking l (f))))
 
 (defn- read-event [msg]
   (when (string? msg) (try (edn/read-string msg) (catch Exception _ nil))))
@@ -56,30 +62,33 @@
     (cond
       ;; the board, then who is here (me included); the others hear of me
       (= ev [:session/hello])
-      (if-let [sess (get @s/sessions sid)]
-        (do (http/send! ch (pr-str [:session/snapshot (:objects sess)]))
-            ;; deleted objects' too: an undo brings one back with its history
-            (http/send! ch (pr-str [:log/all (:log sess)]))
-            (locking presence-lock
-              (let [clients (get-in @s/sessions [sid :clients])]
+      (in-order sid
+        (fn []
+          (if-let [{:keys [objects log clients]} (get @s/sessions sid)]
+            (do (http/send! ch (pr-str [:session/snapshot objects]))
+                ;; deleted objects' too: an undo brings one back with its history
+                (http/send! ch (pr-str [:log/all log]))
                 (when-let [me (get clients ch)]
                   (http/send! ch (pr-str [:presence/roster (:id me) (vec (vals clients))]))
-                  (send-to! sid ch (pr-str [:presence/update me]))))))
-        (http/send! ch (pr-str [:session/missing])))
+                  (send-to! sid ch (pr-str [:presence/update me]))))
+            (http/send! ch (pr-str [:session/missing])))))
 
       ;; the others get what changed
       (and (vector? ev) (= 2 (count ev)) (= :presence/update (first ev)) (ops/presence? (second ev)))
-      (locking presence-lock
-        (when-let [me (get-in (swap! s/sessions s/set-presence sid ch (second ev)) [sid :clients ch])]
-          (send-to! sid ch (pr-str [:presence/update (assoc (second ev) :id (:id me))]))))
+      (in-order sid
+        (fn []
+          (when-let [me (get-in (swap! s/sessions s/set-presence sid ch (second ev)) [sid :clients ch])]
+            (send-to! sid ch (pr-str [:presence/update (assoc (second ev) :id (:id me))])))))
 
       ;; the op to the others, then what it did to everyone: the sender
       ;; learns the server's name and time for it too
       (ops/op? ev)
-      (let [by (or (get-in @s/sessions [sid :clients ch :name]) ops/default-name)
-            entries (get-in (swap! s/sessions s/apply-op sid ev by (now)) [sid :logged])]
-        (send-to! sid ch (pr-str ev))
-        (when (seq entries) (send-to! sid nil (pr-str [:log/add entries])))))))
+      (in-order sid
+        (fn []
+          (let [by (or (get-in @s/sessions [sid :clients ch :name]) ops/default-name)
+                entries (get-in (swap! s/sessions s/apply-op sid ev by (now)) [sid :logged])]
+            (send-to! sid ch (pr-str ev))
+            (when (seq entries) (send-to! sid nil (pr-str [:log/add entries])))))))))
 
 (defn- ws [req sid]
   (http/as-channel req
@@ -89,17 +98,20 @@
                   (http/close ch)))
      :on-receive (fn [ch msg] (receive! sid ch msg))
      :on-close (fn [ch _]
-                 (locking presence-lock
-                   (let [me (get-in @s/sessions [sid :clients ch])]
-                     (swap! s/sessions s/leave sid ch (now))
-                     (when me (send-to! sid nil (pr-str [:presence/left (:id me)]))))))}))
+                 (in-order sid
+                   (fn []
+                     (let [me (get-in @s/sessions [sid :clients ch])]
+                       (swap! s/sessions s/leave sid ch (now))
+                       (when me (send-to! sid nil (pr-str [:presence/left (:id me)])))))))}))
 
 (defn- import! [sid ^java.io.InputStream body]
   (if-let [{:keys [objects log]} (try (tar/import-session (if body (.readAllBytes body) (byte-array 0)))
                                      (catch Exception _ nil))]
-    (do (swap! s/sessions s/replace-objects sid objects log)
-        (send-to! sid nil (pr-str [:session/snapshot objects]))
-        (send-to! sid nil (pr-str [:log/all log]))
+    (do (in-order sid
+          (fn []
+            (swap! s/sessions s/replace-objects sid objects log)
+            (send-to! sid nil (pr-str [:session/snapshot objects]))
+            (send-to! sid nil (pr-str [:log/all log]))))
         {:status 204})
     {:status 400 :body "not a dingsbums export"}))
 
