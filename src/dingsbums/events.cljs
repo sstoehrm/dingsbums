@@ -203,16 +203,19 @@
   2000)
 
 (defn log-lines
-  "The log of the objects ids, newest first, as [{:at :by :what :n}]: a change
-  made to several of them at once (a group moved) is one line, :n of them."
+  "The log of the objects ids, newest first, as [{:at :by :what :n :key}]: a
+  change made to several of them at once (a group moved) is one line, :n of
+  them. :key, [id index] of the line's newest entry, is the line's own: alike
+  changes interleaved in one ms make alike lines."
   [lg ids]
-  (->> (mapcat #(get lg %) (set ids))
+  (->> (set ids)
+       (mapcat (fn [id] (map-indexed #(assoc %2 :key [id %1]) (get lg id))))
        (sort-by :at >)
-       (reduce (fn [lines {:keys [at by what]}]
+       (reduce (fn [lines {:keys [at by what key]}]
                  (let [l (peek lines)]
                    (if (and l (= by (:by l)) (= what (:what l)) (< (- (:last l) at) together-ms))
                      (conj (pop lines) (assoc l :n (inc (:n l)) :last at))
-                     (conj lines {:at at :by by :what what :n 1 :last at}))))
+                     (conj lines {:at at :by by :what what :n 1 :key key :last at}))))
                [])
        (mapv #(dissoc % :last))))
 

@@ -248,9 +248,8 @@
     [:ol.sel-menu.column.log {:aria-label "History"}
      (if (empty? lines)
        [:li.empty "No changes recorded"]
-       (for [{:keys [at by what n]} lines]
-         ^{:key (str at by what)}
-         [:li [:span.by by] [:span (events/log-label what) (when (> n 1) (str " (" n ")"))]
+       (for [{:keys [at by what n key]} lines]
+         [:li {:key key} [:span.by by] [:span (events/log-label what) (when (> n 1) (str " (" n ")"))]
           [:time {:dateTime (.toISOString (js/Date. at))} (events/format-time at now)]]))]))
 
 (defc selection-toolbar [] [sel [:selection] objects [:objects] cam [:camera] drag [:drag] editing [:editing]
