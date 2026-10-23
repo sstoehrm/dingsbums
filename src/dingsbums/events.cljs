@@ -365,6 +365,13 @@
   {:db (assoc db :sel-menu (when-not (= menu (open-menu (:sel-menu db) (:selection db)))
                              {:menu menu :for (:selection db)}))})
 (defn selection-delete [db] (change-selection db model/delete-changes))
+
+(defn selection-nudge
+  "Moves the selection by dx dy; repeat? (a held key) keeps it one undo step."
+  [db dx dy repeat?]
+  (when-not (:drag db)
+    (let [[db' ops] (model/nudge db (:selection db) dx dy repeat?)]
+      (when (seq ops) (with-ops db' ops)))))
 (defn selection-clear [db] {:db (assoc db :selection #{} :tool :select)})
 
 ;; history
@@ -505,6 +512,8 @@
 
 ;; keys
 
+(def ^:private arrows {"ArrowLeft" [-1 0] "ArrowRight" [1 0] "ArrowUp" [0 -1] "ArrowDown" [0 1]})
+
 (defn key-action
   "The event for a key press outside text inputs, or nil to leave it to the browser."
   [{:keys [key ctrl? shift? alt? repeat?]}]
@@ -518,6 +527,9 @@
       (#{"Delete" "Backspace"} key) [:selection/delete]
       (= key "Escape") [:selection/clear]
       (= key " ") [:space true]
+      (and (not alt?) (arrows key)) (let [step (if shift? 10 1)
+                                          [dx dy] (arrows key)]
+                                      [:selection/nudge (* step dx) (* step dy) (boolean repeat?)])
       (or alt? repeat?) nil
       (= key "Home") [:selection/layer :front]
       (= key "End") [:selection/layer :back]
@@ -571,6 +583,7 @@
                 :selection/layer selection-layer
                 :selection/menu menu-toggle
                 :selection/delete selection-delete
+                :selection/nudge selection-nudge
                 :selection/clear selection-clear
                 :history/undo history-undo
                 :history/redo history-redo

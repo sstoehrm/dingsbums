@@ -1,7 +1,8 @@
 (ns dingsbums.model
   "Pure board model: constructors, groups, locks and the undo history. A change
   set is {id obj-or-nil}; nil means the object is removed. A history entry is
-  {:before changes :after changes} over the same ids."
+  {:before changes :after changes} over the same ids; an arrow-key move also
+  carries :nudge? true, so a held key can extend it."
   (:require [clojure.string :as str]
             [dingsbums.geom :as geom]
             [dingsbums.ops :as ops]))
@@ -211,6 +212,26 @@
 
 (defn undo [db] (step db :undo :redo :before))
 (defn redo [db] (step db :redo :undo :after))
+
+(defn nudge
+  "[db ops] moving the unlocked, non-connection objects among ids by dx dy. A
+  held key (merge?) extends the last history entry when that is a nudge of the
+  same objects, so the whole hold is one undo step."
+  [db ids dx dy merge?]
+  (let [objects (:objects db)
+        changes (moved objects (movable objects ids) dx dy)
+        {:keys [undo redo]} (:history db)
+        top (peek undo)]
+    (if (empty? changes)
+      [db []]
+      [(-> db
+           (update :history
+                   (fn [h]
+                     (if (and merge? (empty? redo) (:nudge? top) (= (set (keys (:after top))) (set (keys changes))))
+                       (push-entry (update h :undo pop) (assoc top :after changes))
+                       (push-entry h {:before (select-keys objects (keys changes)) :after changes :nudge? true}))))
+           (update :objects apply-changes changes))
+       (patch-ops (vals changes))])))
 
 (defn finish-gesture
   "[db ops] for a drag/resize that started from `before` ({id obj}) and has

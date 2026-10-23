@@ -16,7 +16,8 @@
 (defn- typing? [^js e] (contains? #{"INPUT" "TEXTAREA" "SELECT"} (.. e -target -tagName)))
 
 (defn- on-keydown [^js e]
-  (when-not (typing? e)
+  ;; off the board (the landing page scrolls) every key is the browser's
+  (when (and (= :board (:route @state/app-db)) (not (typing? e)))
     (when-let [action (events/key-action {:key (.-key e) :ctrl? (or (.-ctrlKey e) (.-metaKey e))
                                           :shift? (.-shiftKey e) :alt? (.-altKey e) :repeat? (.-repeat e)})]
       (.preventDefault e)
