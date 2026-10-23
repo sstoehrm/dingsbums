@@ -416,7 +416,8 @@
     (let [db (assoc board :name "Ada")]
       (is (= "Ada" (get-in (ev/name-edit db) [:db :naming])))
       (is (nil? (get-in (ev/name-cancel (:db (ev/name-edit db))) [:db :naming])))))
-  (is (nil? (ev/name-cancel board)) "without a name the dialog stays"))
+  (is (nil? (ev/name-cancel board)) "without a name the dialog stays")
+  (is (nil? (get-in (ev/route-changed (assoc board :name "Ada" :naming "x") "") [:db :naming])) "leaving closes it"))
 
 (deftest presence
   (let [online (assoc with-objs :online? true)]
@@ -427,7 +428,16 @@
             fx3 (ev/pointer-move (or (:db fx2) (:db fx1)) (pe 14 20 :t 140))]
         (is (= [[:presence/update {:cursor [105 10]}]] (:tube/send fx1)))
         (is (nil? (:tube/send fx2)) "throttled")
-        (is (= [[:presence/update {:cursor [107 10]}]] (:tube/send fx3)))))
+        (is (= [[:presence/update {:cursor [107 10]}]] (:tube/send fx3)))
+        (testing "a throttled position still goes out a moment later"
+          (let [fx4 (ev/pointer-move (:db fx3) (pe 16 20 :t 150))
+                fx5 (ev/pointer-move (:db fx4) (pe 18 20 :t 160))
+                fx6 (ev/cursor-flush (:db fx5))]
+            (is (= ev/send-interval (:cursor/flush-later fx4)))
+            (is (nil? (:cursor/flush-later fx5)) "one flush at a time")
+            (is (= [[:presence/update {:cursor [109 10]}]] (:tube/send fx6)) "the latest position")
+            (is (nil? (ev/cursor-flush (:db fx6))) "nothing left")
+            (is (nil? (ev/cursor-flush (:db (ev/pointer-leave (:db fx5))))) "left the board meanwhile")))))
     (is (nil? (ev/pointer-move with-objs (pe 10 20 :t 100))) "offline: nothing")
     (is (= [[:presence/update {:cursor nil}]] (:tube/send (ev/pointer-leave online))) "off the board")
     (is (nil? (ev/pointer-leave with-objs)))
@@ -435,15 +445,16 @@
           fx (ev/pointer-move db (pe 50 10 :t 100))]
       (is (= [[:op/patch [{:id "a" :x 40 :y 0 :w 100 :h 100}]] [:presence/update {:cursor [50 10]}]] (:tube/send fx))
           "a drag sends its patch and the cursor")))
-  (testing "hello tells my name and selection"
-    (is (= [[:session/hello] [:presence/update {:name "Ada" :selection ["a" "b"]}]]
+  (testing "hello is preceded by my name and selection, so the others never see me nameless"
+    (is (= [[:presence/update {:name "Ada" :selection ["a" "b"]}] [:session/hello]]
            (:tube/send (ev/tube-connected (assoc board :name "Ada" :selection #{"b" "a"})))))
     (is (= [[:session/hello]] (:tube/send (ev/tube-connected board)))))
   (testing "who is here"
     (let [db (:db (ev/presence-roster board "me" [{:id "me" :color 0} {:id "u2" :color 1 :name "Bo"}]))]
       (is (= {:id "me" :color 0} (:you db)))
       (is (= {"u2" {:id "u2" :color 1 :name "Bo"}} (:peers db)))
-      (is (= "x" (get-in (ev/presence-update db {:id "u2" :color 1 :name "x"}) [:db :peers "u2" :name])))
+      (is (= {:id "u2" :color 1 :name "Bo" :cursor [1 2]}
+             (get-in (ev/presence-update db {:id "u2" :cursor [1 2]}) [:db :peers "u2"])) "updates are merged in")
       (is (= #{"u2" "u3"} (set (keys (:peers (:db (ev/presence-update db {:id "u3" :color 2})))))))
       (is (nil? (ev/presence-update db {:id "me" :color 0 :name "x"})) "not myself")
       (is (= {} (get-in (ev/presence-left db "u2") [:db :peers])))

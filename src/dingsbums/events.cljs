@@ -17,11 +17,11 @@
    :objects {} :history {:undo [] :redo []} :selection #{} :tool :select :shape-kind :rect
    :camera {:x 0 :y 0 :zoom 1} :drag nil :editing nil :space? false :img-tick 0
    :viewport [1024 768] :theme nil :os-dark? false :hand? false :loading? false :sel-menu nil
-   :name nil :naming nil :you nil :peers {} :cursor-sent ##-Inf})
+   :name nil :naming nil :you nil :peers {} :cursor-sent ##-Inf :cursor-pending nil})
 
 (def ^:private board-reset
   (select-keys initial-db [:objects :history :selection :tool :camera :drag :editing :message :online? :loading?
-                           :you :peers]))
+                           :naming :you :peers]))
 
 (def send-interval 33)
 (def hit-px 6)
@@ -32,6 +32,7 @@
 
 (reg-fx :tube/send (fn [evs] (run! tubes/send! evs)))
 (reg-fx :set-hash (fn [h] (set! (.-hash js/location) h)))
+(reg-fx :cursor/flush-later (fn [ms] (js/setTimeout #(dispatch [:cursor/flush]) ms)))
 (reg-fx :clipboard/write (fn [s] (some-> js/navigator .-clipboard (.writeText s) (.catch (fn [_] nil)))))
 
 (def theme-storage-key "dingsbums-theme")
@@ -149,12 +150,13 @@
 (defn- selection-ids [db] (vec (sort (:selection db))))
 
 (defn tube-connected
-  "Hello, and who I am and what I have selected (on a reconnect)."
+  "Who I am and what I have selected (on a reconnect), then hello: the roster
+  and the others then have my name from the start."
   [db]
   (let [p (cond-> {}
             (:name db) (assoc :name (:name db))
             (seq (:selection db)) (assoc :selection (selection-ids db)))]
-    {:db (assoc db :online? true) :tube/send (cond-> [[:session/hello]] (seq p) (conj [:presence/update p]))}))
+    {:db (assoc db :online? true) :tube/send (conj (if (seq p) [[:presence/update p]] []) [:session/hello])}))
 
 (defn tube-disconnected [db] {:db (assoc db :online? false :peers {})})
 
@@ -171,8 +173,10 @@
   (let [{me true others false} (group-by #(= you (:id %)) users)]
     {:db (assoc db :you (first me) :peers (into {} (map (juxt :id identity)) others))}))
 
-(defn presence-update [db user]
-  (when-not (= (:id user) (get-in db [:you :id])) {:db (assoc-in db [:peers (:id user)] user)}))
+(defn presence-update
+  "A peer's presence, or what changed of it."
+  [db user]
+  (when-not (= (:id user) (get-in db [:you :id])) {:db (update-in db [:peers (:id user)] merge user)}))
 
 (defn presence-left [db id] {:db (update db :peers dissoc id)})
 
@@ -348,17 +352,26 @@
 
 (defn- send-cursor
   "fx (nil: nothing to do) also telling the others my pointer's board position
-  p, at most every send-interval."
+  p, at most every send-interval; a held back one goes out a moment later."
   [fx db p t]
   (let [db (:db fx db)]
-    (if (and (:online? db) (>= (- t (:cursor-sent db)) send-interval))
-      (presence-send (assoc fx :db (assoc db :cursor-sent t)) {:cursor p})
-      fx)))
+    (cond
+      (not (:online? db)) fx
+      (>= (- t (:cursor-sent db)) send-interval)
+      (presence-send (assoc fx :db (assoc db :cursor-sent t :cursor-pending nil)) {:cursor p})
+      :else (cond-> (assoc fx :db (assoc db :cursor-pending p))
+              (nil? (:cursor-pending db)) (assoc :cursor/flush-later send-interval)))))
+
+(defn cursor-flush
+  "Sends the pointer position the throttle held back, if any."
+  [db]
+  (when-let [p (:cursor-pending db)]
+    (presence-send {:db (assoc db :cursor-pending nil)} {:cursor p})))
 
 (defn pointer-move [db {:keys [t] :as e}]
   (let [p (world db e)] (send-cursor (drag-move db e p) db p t)))
 
-(defn pointer-leave [db] (when (:online? db) (presence-send {:db db} {:cursor nil})))
+(defn pointer-leave [db] (when (:online? db) (presence-send {:db (assoc db :cursor-pending nil)} {:cursor nil})))
 
 (defn- create-object [db {:keys [kind start]} end]
   (let [r (geom/rect-from-points start end)
@@ -643,6 +656,7 @@
                 :pointer/move pointer-move
                 :pointer/up pointer-up
                 :pointer/leave pointer-leave
+                :cursor/flush cursor-flush
                 :pointer/dblclick dblclick
                 :edit/start edit-start
                 :edit/input edit-input

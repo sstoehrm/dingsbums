@@ -43,6 +43,11 @@
   (doseq [ch (keys (get-in @s/sessions [sid :clients])) :when (not= ch except)]
     (http/send! ch msg)))
 
+(def ^:private presence-lock
+  "Held while presence goes out and around leaving, so a roster and the
+  updates and leavings after it reach every client in the order they happened."
+  (Object.))
+
 (defn- read-event [msg]
   (when (string? msg) (try (edn/read-string msg) (catch Exception _ nil))))
 
@@ -52,16 +57,19 @@
       ;; the board, then who is here (me included); the others hear of me
       (= ev [:session/hello])
       (if-let [sess (get @s/sessions sid)]
-        (let [me (get-in sess [:clients ch])]
-          (http/send! ch (pr-str [:session/snapshot (:objects sess)]))
-          (when me
-            (http/send! ch (pr-str [:presence/roster (:id me) (vec (vals (:clients sess)))]))
-            (send-to! sid ch (pr-str [:presence/update me]))))
+        (do (http/send! ch (pr-str [:session/snapshot (:objects sess)]))
+            (locking presence-lock
+              (let [clients (get-in @s/sessions [sid :clients])]
+                (when-let [me (get clients ch)]
+                  (http/send! ch (pr-str [:presence/roster (:id me) (vec (vals clients))]))
+                  (send-to! sid ch (pr-str [:presence/update me]))))))
         (http/send! ch (pr-str [:session/missing])))
 
+      ;; the others get what changed
       (and (vector? ev) (= 2 (count ev)) (= :presence/update (first ev)) (ops/presence? (second ev)))
-      (when-let [me (get-in (swap! s/sessions s/set-presence sid ch (second ev)) [sid :clients ch])]
-        (send-to! sid ch (pr-str [:presence/update me])))
+      (locking presence-lock
+        (when-let [me (get-in (swap! s/sessions s/set-presence sid ch (second ev)) [sid :clients ch])]
+          (send-to! sid ch (pr-str [:presence/update (assoc (second ev) :id (:id me))]))))
 
       (ops/op? ev)
       (let [[op arg] ev]
@@ -76,9 +84,10 @@
                   (http/close ch)))
      :on-receive (fn [ch msg] (receive! sid ch msg))
      :on-close (fn [ch _]
-                 (let [me (get-in @s/sessions [sid :clients ch])]
-                   (swap! s/sessions s/leave sid ch (now))
-                   (when me (send-to! sid nil (pr-str [:presence/left (:id me)])))))}))
+                 (locking presence-lock
+                   (let [me (get-in @s/sessions [sid :clients ch])]
+                     (swap! s/sessions s/leave sid ch (now))
+                     (when me (send-to! sid nil (pr-str [:presence/left (:id me)]))))))}))
 
 (defn- import! [sid ^java.io.InputStream body]
   (if-let [objects (try (tar/import-session (if body (.readAllBytes body) (byte-array 0)))

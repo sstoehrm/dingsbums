@@ -15,8 +15,13 @@
 
 (defn- typing? [^js e] (contains? #{"INPUT" "TEXTAREA" "SELECT"} (.. e -target -tagName)))
 
+(defn- modal?
+  "The name dialog is open: the board behind it takes no keys or pastes."
+  []
+  (let [{:keys [route name naming]} @state/app-db] (events/name-dialog? route name naming)))
+
 (defn- on-keydown [^js e]
-  (when-not (typing? e)
+  (when-not (or (typing? e) (modal?))
     (when-let [action (events/key-action {:key (.-key e) :ctrl? (or (.-ctrlKey e) (.-metaKey e))
                                           :shift? (.-shiftKey e) :alt? (.-altKey e) :repeat? (.-repeat e)})]
       (.preventDefault e)
@@ -82,7 +87,7 @@
       (when image (let [n @copies] (js/setTimeout #(write-image! image data n) 0))))))
 
 (defn- on-paste [^js e]
-  (when-not (typing? e)
+  (when-not (or (typing? e) (modal?))
     (let [^js data (.-clipboardData e)
           objs (or (events/read-copied (.getData data events/clipboard-type))
                    (events/read-copied (events/html-copied (.getData data "text/html"))))

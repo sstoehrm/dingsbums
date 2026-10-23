@@ -156,7 +156,7 @@
             "a newcomer sees who is there and where")
         (is (= [:presence/update {:id you2 :color 1}] (recv c1)) "the others hear of a newcomer")
         (send! c2 [:presence/update {:selection ["a"]}])
-        (is (= [:presence/update {:id you2 :color 1 :selection ["a"]}] (recv c1)))
+        (is (= [:presence/update {:id you2 :selection ["a"]}] (recv c1)) "only what changed")
         (is (quiet? c2) "no echo to the sender")
         (send! c2 [:presence/update {:color 5}])
         (send! c2 [:presence/update {:id you}])

@@ -58,6 +58,7 @@
          false)))
 
 (def max-name-length 32)
+(def max-selection 10000)
 
 (defn- finite? [x] (and (number? x) #?(:clj (Double/isFinite (double x)) :cljs (js/isFinite x))))
 
@@ -66,11 +67,11 @@
   id and colour come from the server."
   {:name #(and (string? %) (<= 1 (count %) max-name-length) (not (re-find #"[\x00-\x1f\x7f]" %)))
    :cursor #(or (nil? %) (and (vector? %) (= 2 (count %)) (every? finite? %)))
-   :selection #(and (vector? %) (every? string? %))})
+   :selection #(and (vector? %) (<= (count %) max-selection) (every? (:id field-ok) %))})
 
 (defn presence?
   "p is a well-formed presence update: some of :name (1–32 characters, no
   control characters), :cursor ([x y] in board coordinates, nil: off the board)
-  and :selection (the ids the user has selected)."
+  and :selection (the ids the user has selected, at most 10000)."
   [p]
   (and (map? p) (seq p) (every? (fn [[k v]] (when-let [ok (presence-ok k)] (ok v))) p)))

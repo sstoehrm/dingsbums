@@ -64,5 +64,8 @@
   (is (not (ops/presence? {:cursor [1 ##NaN]})))
   (is (not (ops/presence? {:selection "a"})))
   (is (not (ops/presence? {:selection [1]})))
+  (is (not (ops/presence? {:selection ["no spaces"]})) "ids like object ids")
+  (is (ops/presence? {:selection (vec (repeat ops/max-selection "a"))}))
+  (is (not (ops/presence? {:selection (vec (repeat (inc ops/max-selection) "a"))})) "bounded")
   (is (not (ops/presence? {:color 3})) "the server picks the colour")
   (is (not (ops/presence? {:id "someone-else"}))))
