@@ -5,6 +5,8 @@
             [clojure.edn :as edn]
             [clojure.string :as str]
             [clojure.test :refer [deftest is use-fixtures]]
+            [dingsbums.log :as log]
+            [dingsbums.ops :as ops]
             [dingsbums.server :as server]
             [dingsbums.sessions :as s]
             [dingsbums.tar :as tar]
@@ -130,6 +132,46 @@
     (send! c [:op/upsert [a]])
     (is (= [:session/snapshot {"a" a}] (hello! c)))))
 
+(defn- blocked?
+  "Thread t is blocked on a lock within 2 seconds."
+  [^Thread t]
+  (loop [n 0]
+    (cond (= Thread$State/BLOCKED (.getState t)) true
+          (< n 200) (do (Thread/sleep 10) (recur (inc n)))
+          :else false)))
+
+(deftest an-op-during-hello-reaches-the-newcomer-once
+  (let [sid (create!) c1 (connect sid) c2 (connect sid :log)
+        snapshot-due (promise) go-on (promise) op-thread (promise)
+        real-send! http/send! real-op? ops/op?]
+    (hello! c1)
+    (with-redefs [http/send! (fn [ch msg]
+                               (when (str/starts-with? msg "[:session/snapshot")
+                                 (deliver snapshot-due true) @go-on)
+                               (real-send! ch msg))
+                  ops/op? (fn [ev] (deliver op-thread (Thread/currentThread)) (real-op? ev))]
+      (send! c2 [:session/hello])
+      (is (deref snapshot-due 2000 false))
+      ;; c1's change while c2's snapshot is on its way
+      (send! c1 [:op/upsert [a]])
+      (is (blocked? (deref op-thread 2000 (Thread/currentThread))) "the op waits for the hello")
+      (is (nil? (get-in @s/sessions [sid :objects "a"])) "not applied before the snapshot is sent")
+      (deliver go-on true)
+      (let [msgs (vec (repeatedly 5 #(recv c2)))
+            [objects lg] (reduce (fn [[objects lg] [ev x]]
+                                   (case ev
+                                     :session/snapshot [x lg]
+                                     :log/all [objects x]
+                                     :log/add [objects (log/add lg x)]
+                                     :op/upsert [(ops/upsert objects x) lg]
+                                     [objects lg]))
+                                 [{} {}] msgs)]
+        (is (= [:session/snapshot :log/all :presence/roster :op/upsert :log/add] (mapv first msgs))
+            "nothing before the hello is answered, the change once after it")
+        (is (quiet? c2))
+        (is (= {"a" a} objects) "the newcomer's board has the change")
+        (is (= [:created] (mapv :what (get lg "a"))) "and its history, once")))))
+
 (deftest unknown-session-is-told-and-closed
   (let [c (connect "nope")]
     (is (= [:session/missing] (recv c)))
@@ -231,3 +273,11 @@
     (is (= 400 (:status (req :post (str "/api/sessions/" sid "/import") {:body "not a tar"}))))
     (is (= {"a" a} (get-in @s/sessions [sid :objects])) "session untouched")
     (is (= 404 (:status (req :post "/api/sessions/nope/import" {:body "x"}))))))
+
+(deftest import-into-a-session-gone-meanwhile
+  (let [sid (create!)
+        tar (tar/export-session {"a" a} {})
+        real-import tar/import-session]
+    (with-redefs [tar/import-session (fn [bs] (swap! s/sessions dissoc sid) (real-import bs))]
+      (is (= 404 (:status (req :post (str "/api/sessions/" sid "/import") {:body tar})))
+          "not told it worked"))))

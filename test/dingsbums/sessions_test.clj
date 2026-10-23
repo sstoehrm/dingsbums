@@ -8,7 +8,8 @@
 
 (deftest create-and-object-ops
   (let [m (s/create {} "s1" 100)]
-    (is (= {:objects {} :log {} :clients {} :empty-since 100} (get m "s1")))
+    (is (= {:objects {} :log {} :clients {} :greeted #{} :empty-since 100} (dissoc (get m "s1") :lock)))
+    (is (not= (get-in m ["s1" :lock]) (get-in (s/create m "s2" 100) ["s2" :lock])) "a lock of its own")
     (is (= {"a" a "ab" ab} (get-in (s/apply-op m "s1" [:op/upsert [a ab]] "Ada" 10) ["s1" :objects])))
     (is (= {} (get-in (-> m (s/apply-op "s1" [:op/upsert [a ab]] "Ada" 10) (s/apply-op "s1" [:op/delete ["a"]] "Ada" 20))
                       ["s1" :objects])))
@@ -45,6 +46,13 @@
     (is (nil? (get-in m ["s1" :empty-since])))
     (is (nil? (get-in (s/leave m "s1" :c1 500) ["s1" :empty-since])) "still one client")
     (is (= 600 (get-in (-> m (s/leave "s1" :c1 500) (s/leave "s1" :c2 600)) ["s1" :empty-since])))))
+
+(deftest greeted-from-hello-to-leaving
+  (let [m (-> {} (s/create "s1" 0) (s/join "s1" :c1 "u1"))]
+    (is (= #{} (get-in m ["s1" :greeted])) "not on joining")
+    (is (= #{:c1} (get-in (s/greet m "s1" :c1) ["s1" :greeted])))
+    (is (= m (s/greet m "s1" :c2)) "unknown client: no-op")
+    (is (= #{} (get-in (-> m (s/greet "s1" :c1) (s/leave "s1" :c1 5)) ["s1" :greeted])))))
 
 (deftest expire-after-15-idle-minutes
   (let [m (-> {} (s/create "idle" 0) (s/create "busy" 0) (s/join "busy" :c "u"))]

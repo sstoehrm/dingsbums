@@ -105,7 +105,7 @@ are random UUIDs; no route lists them.
 | `POST /api/sessions` | new session, `:empty-since` now; `200 {"id": "..."}` |
 | `GET /api/sessions/:id` | `204` if it exists, `404` otherwise |
 | `GET /api/sessions/:id/export` | `200 application/x-tar`, `Content-Disposition: attachment; filename="dingsbums-<id>.tar"`; 404 if unknown |
-| `POST /api/sessions/:id/import` | body is a tar; replaces the session's objects and sends `[:session/snapshot objs]` to all its clients; `204`; `400` on a malformed tar (session untouched); `404` if unknown |
+| `POST /api/sessions/:id/import` | body is a tar; replaces the session's objects and sends `[:session/snapshot objs]` to all its greeted clients; `204`; `400` on a malformed tar (session untouched); `404` if unknown |
 
 ### Tar format
 
@@ -135,11 +135,13 @@ hammer.tubes protocol: one EDN event vector per text frame, read with
   `[:op/delete [id ...]]`: apply with one `swap!` (delete cascades to
   connections; a patch only touches existing objects, so it never resurrects a
   deleted one; `dingsbums.ops`), forward the same frame to the session's other
-  clients. Unreadable frames and events of any other shape are ignored.
+  greeted clients. Unreadable frames and events of any other shape are ignored.
   Objects need an `:id` of 1–64 `[A-Za-z0-9_-]` and a known `:kind`, may only
   carry the keys of the data model, each with the right type (numbers for
   geometry and `:z`, strings for text, color, src, fill, ends, group; a known `:shape`;
   boolean `:locked?`).
+- **Greeted:** broadcasts reach only clients whose hello is answered; a
+  session's lock orders hellos and changes, so a newcomer gets each change once.
 - **Frame limit:** http-kit `:max-ws` 20 MB; a larger frame makes http-kit
   close the connection (1009), the client reconnects and resyncs.
 - **Close:** remove the channel; when it was the last, set `:empty-since` now.
