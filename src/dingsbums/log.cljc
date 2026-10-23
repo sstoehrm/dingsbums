@@ -48,7 +48,7 @@
 
 (defn- repeat? [log id {:keys [at by what]}]
   (let [l (peek (get log id))]
-    (and l (= by (:by l)) (= what (:what l)) (< (- at (:at l)) repeat-ms))))
+    (and l (= by (:by l)) (= what (:what l)) (<= (:at l) at) (< (- at (:at l)) repeat-ms))))
 
 (defn entries
   "The entries [[id {:at :by :what}] ...] that op [op arg], sent by `by` at
