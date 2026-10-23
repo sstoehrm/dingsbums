@@ -247,11 +247,14 @@
   (and (= :board route) (or (nil? name) (some? naming))))
 
 (defn clean-name
-  "s as a name: control characters as spaces, trimmed, at most 32 characters;
-  nil when blank."
+  "s as a name: control characters as spaces, trimmed, at most 32 UTF-16 code
+  units, never ending in half an emoji; nil when blank."
   [s]
   (let [n (str/trim (str/replace (str s) ops/name-control-chars " "))]
-    (when-not (str/blank? n) (subs n 0 (min (count n) ops/max-name-length)))))
+    (when-not (str/blank? n)
+      (-> (subs n 0 (min (count n) ops/max-name-length))
+          (str/replace #"[\uD800-\uDBFF]$" "")
+          str/trimr))))
 
 (defn name-edit [db] {:db (assoc db :naming (or (:name db) ""))})
 (defn name-input [db s] {:db (assoc db :naming s)})

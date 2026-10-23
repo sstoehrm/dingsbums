@@ -8,6 +8,7 @@
             [dingsbums.events :as ev]
             [dingsbums.geom :as geom]
             [dingsbums.log]
+            [dingsbums.ops :as ops]
             [dingsbums.themes :as themes]))
 
 (def board (assoc ev/initial-db :route :board :session "s1"))
@@ -470,6 +471,13 @@
   (is (nil? (ev/name-save board)) "nor no name")
   (is (= "a b" (get-in (ev/name-save (:db (ev/name-input board "a\tb"))) [:db :name])) "no control characters")
   (is (= 32 (count (get-in (ev/name-save (:db (ev/name-input board (apply str (repeat 40 "x"))))) [:db :name]))))
+  (testing "shortening never cuts an emoji in half"
+    (let [x31 (apply str (repeat 31 "x"))]
+      (is (= x31 (ev/clean-name (str x31 "\uD83D\uDE00"))))
+      (is (= (apply str (repeat 30 "x")) (ev/clean-name (str (apply str (repeat 30 "x")) " \uD83D\uDE00"))) "nor ends in a space")
+      (is (= (str "Ada" "\uD83D\uDE00") (ev/clean-name "Ada\uD83D\uDE00")))
+      (is (= "A b" (ev/clean-name "A\uDE00b\uD83D")) "a stray half is dropped like a control character")
+      (is (every? ops/valid-name? (map #(ev/clean-name (str (apply str (repeat % "x")) (apply str (repeat 20 "\uD83D\uDE00")))) (range 33))))))
   (is (= [[:presence/update {:name "Bo"}]]
          (:tube/send (ev/name-save (:db (ev/name-input (assoc board :online? true) "Bo"))))))
   (testing "renaming starts from the name and can be cancelled"

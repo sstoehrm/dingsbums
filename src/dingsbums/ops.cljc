@@ -60,13 +60,16 @@
 
 (def max-name-length 32)
 (def default-name "The name of someone who gave none." "Guest")
-(def name-control-chars "What a name must not contain." #"[\x00-\x1f\x7f]")
+(def name-control-chars
+  "What a name must not contain: control characters and half a surrogate pair."
+  #"[\x00-\x1f\x7f]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]")
 (def max-selection 10000)
 
 (defn- finite? [x] (and (number? x) #?(:clj (Double/isFinite (double x)) :cljs (js/isFinite x))))
 
 (defn valid-name?
-  "s is a user's name: 1–32 characters, no control characters."
+  "s is a user's name: 1–32 UTF-16 code units (an emoji is two), no control
+  characters, no half emoji."
   [s]
   (and (string? s) (<= 1 (count s) max-name-length) (not (re-find name-control-chars s))))
 
