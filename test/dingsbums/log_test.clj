@@ -57,7 +57,8 @@
     (is (not (contains? pruned "d0")) "the oldest deletion goes")
     (is (contains? pruned (str "d" log/deleted-kept)))
     (is (= [:created] (whats {} pruned [:op/upsert [(assoc a :id "d0")]])) "its undo reads as created")
-    (is (= [:restored] (whats {} pruned [:op/upsert [(assoc a :id "d1")]])))))
+    (is (= [:restored] (whats {} pruned [:op/upsert [(assoc a :id "d1")]])))
+    (is (identical? pruned (log/prune pruned {"a" a})) "none to drop: the log as it is")))
 
 (deftest read-keeps-only-valid-entries-of-objects
   (let [ok {:at 5 :by "Ada" :what :created}]

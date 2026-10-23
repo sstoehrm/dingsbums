@@ -52,8 +52,10 @@
   deleted-kept most recently deleted, a deleted object's last entry being its
   deletion."
   [log objects]
-  (let [gone (->> (keys log) (remove #(contains? objects %)) (sort-by #(:at (peek (get log %))) >))]
-    (apply dissoc log (drop deleted-kept gone))))
+  (let [gone (into [] (remove #(contains? objects %)) (keys log))]
+    (if (<= (count gone) deleted-kept)
+      log
+      (apply dissoc log (drop deleted-kept (sort-by #(:at (peek (get log %))) > gone))))))
 
 (defn- repeat? [log id {:keys [at by what]}]
   (let [l (peek (get log id))]
