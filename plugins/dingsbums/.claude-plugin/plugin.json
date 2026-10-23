@@ -1,6 +1,6 @@
 {
   "name": "dingsbums",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Prepares dingsbums boards (retros, dot votes, workshops, diagrams) as a .tar to load with Import",
   "author": {
     "name": "Sören Stöhrmann",
