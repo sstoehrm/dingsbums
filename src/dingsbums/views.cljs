@@ -182,11 +182,11 @@
      [:button.primary {:type "submit" :disabled (nil? (events/clean-name draft))} "Save"]]]])
 
 (def ^:private tools
-  [[:select "Select (V)"] [:text "Text (T)"] [:frame "Frame (F)"] [:shape "Shapes (S, again: next shape)"]
-   [:sticky "Sticky note (N)"] [:connection "Connection (L)"] [:dot "Dot (D)"]
-   [:counter "Counting box (C): counts the dots in it"]
-   [:scale-x "Scale (X): the average x of the dots on it"]
-   [:scale-xy "Two-axis scale (Y): the average x and y of the dots on it"]])
+  [[:select "Select (V)" "V"] [:text "Text (T)" "T"] [:frame "Frame (F)" "F"] [:shape "Shapes (S, again: next shape)" "S"]
+   [:sticky "Sticky note (N)" "N"] [:connection "Connection (L)" "L"] [:dot "Dot (D)" "D"]
+   [:counter "Counting box (C): counts the dots in it" "C"]
+   [:scale-x "Scale (X): the average x of the dots on it" "X"]
+   [:scale-xy "Two-axis scale (Y): the average x and y of the dots on it" "Y"]])
 
 (defc toolbar [] [tool [:tool] shape [:shape-kind]]
   [:div.toolbar
@@ -196,9 +196,9 @@
                           :on-click [:tool/shape k]}
                  (icons k)])]
    [:div.tools
-    (for [[k label] tools]
+    (for [[k label key] tools]
       ^{:key k} [:button {:class (when (= k tool) "active") :title label :aria-label label :on-click [:tool/select k]}
-                 (icons k)])
+                 (icons k) [:kbd key]])
     [:span.sep]
     [:button {:title "Undo (Ctrl+Z)" :aria-label "Undo" :on-click [:history/undo]} (icons :undo)]
     [:button {:title "Redo (Ctrl+Shift+Z)" :aria-label "Redo" :on-click [:history/redo]} (icons :redo)]]])
