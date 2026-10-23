@@ -3,7 +3,8 @@
 ;;
 ;;   bb -cp src .claude/skills/dingsbums-board/pack.clj <folder> [out.tar]
 ;;
-;; <folder> holds session.edn and, for pictures, images/. Exits 1 when an
+;; <folder> holds session.edn and, for pictures, images/; the tar goes to
+;; <folder>/board.tar unless out.tar is given. Exits 1 when an
 ;; object would be dropped, a connection misses an end or a picture is missing.
 
 (require '[babashka.fs :as fs]
@@ -15,7 +16,7 @@
       _ (when-not dir
           (println "usage: bb -cp src .claude/skills/dingsbums-board/pack.clj <folder> [out.tar]")
           (System/exit 2))
-      out (or out "board.tar")
+      out (or out (str (fs/path dir "board.tar")))
       edn-file (fs/file dir "session.edn")
       objs (vals (:objects (edn/read-string (slurp edn-file))))
       images (when (fs/directory? (fs/path dir "images")) (fs/list-dir (fs/path dir "images")))

@@ -22,8 +22,8 @@ A ustar tar with `session.edn` and, for pictures, `images/<id>.<ext>`:
 
 ```clojure
 {:version 1
- :objects {"title" {:id "title" :kind :text :x 40 :y 100 :w 520 :h 64 :z 1 :text "Sprint 42 retro"}
-           "s1" {:id "s1" :kind :sticky :x 40 :y 200 :w 200 :h 200 :z 2 :fill "#fff176" :text "Pairing"}}}
+ :objects {"title" {:id "title" :kind :text :x 40 :y 120 :w 520 :h 64 :z 1 :text "Sprint 42 retro"}
+           "s1" {:id "s1" :kind :sticky :x 40 :y 220 :w 200 :h 200 :z 2 :fill "#fff176" :text "Pairing"}}}
 ```
 
 `:objects` is a **map** from id to object; the key is the object's `:id`.
@@ -43,7 +43,7 @@ gets the whole object dropped.
 | `:fill` | `"#rrggbb"` (`:shape`, `:sticky`, `:dot`); nil, or left out, is no fill on a shape and the default colour on the others |
 | `:color` | text colour `"#rrggbb"` (`:text`, `:sticky`); leave out for automatic |
 | `:shape` | `:rect :circle :star :arrow` (`:shape`) |
-| `:side` | `:top :bottom :left :right`: where a measuring box shows its number, outside the box (default bottom) |
+| `:side` | `:top :bottom :left :right`: where a counter or scale shows its number, outside the box (default bottom) |
 | `:from :to` | ids of the two objects a `:connection` joins |
 | `:src` | `"images/<id>.png"` (file in the tar) or a `data:` URL (`:image`) |
 | `:group` | any string; objects sharing it select and move together |
@@ -79,8 +79,14 @@ pick: `#fff176` yellow, `#ffb74d` orange, `#e57373` red, `#81c784` green,
   `w = 0.6 × size × chars + 2p`, `h = 1.2 × size × lines + 2p`, with padding
   `p` 8 for `:text` and 20 for `:sticky`. A 40 px heading of 20 characters:
   ~500×64. A 200×200 sticky reads well up to ~25 words. Each box sizes its
-  own text, so stickies of different lengths show different sizes; put
-  line breaks in multi-step instructions.
+  own text, so stickies of different lengths show different sizes, and one
+  long word ("notifications") shrinks a whole sticky: widen it. Put line
+  breaks in multi-step instructions. Any Unicode the system's monospace
+  font has works (`·`, `×`, `→`, `Ø`, accents); skip emoji.
+- **Shapes have no text.** To label one, lay a `:text` with the shape's
+  rect over it (higher `:z`); its colour adapts to the shape's fill.
+- **Connections** run from the center of `:from` to the edge of `:to` and
+  draw under both, so only the gap between them shows: leave 40 px or more.
 - **Text colour** is automatic: dark or white to suit a sticky's fill, or
   the sticky or filled shape behind a `:text`, else the theme's (dark on
   light themes, light on dark). Set `:color` only for emphasis.
@@ -90,14 +96,16 @@ pick: `#fff176` yellow, `#ffb74d` orange, `#e57373` red, `#81c784` green,
   and zoom out): put the title and the instructions in the first
   ~1200×700, the sections after it in reading order, below or right.
 - **Measuring boxes** count **dots only**, by their center, live. The
-  number (a count, or `Ø 3.7`, or `Ø 3.7 · 6.2`) sits ~32 px outside the
-  box on its `:side`, centred; leave that space free. A counter has nothing
-  inside, so anything may go in it. A scale's axes run along its bottom
-  edge (x, 0 left to 10 right) and, for `:scale-xy`, its left edge (y, 0
-  bottom to 10 top), with tick labels just inside; its average shows as a
-  line or crosshair across the box. Put axis labels outside: under the
-  bottom edge's ends and left of the left edge's ends, with the number on
-  another side (`:side :right`, say) when it would collide with them.
+  number (a count, or `Ø 3.7`, or `Ø 3.7 · 6.2`) is 24 px monospace, 8 px
+  outside the box on its `:side`, centred: leave ~32 px free above or
+  below, or ~170 px left or right. A counter has nothing inside, so
+  anything may go in it. A scale's axes run along its bottom edge (x, 0
+  left to 10 right) and, for `:scale-xy`, its left edge (y, 0 bottom to 10
+  top), with ticks and 12 px labels (0, 5, 10) within ~25 px inside those
+  edges; its average shows as a line or crosshair across the box. Put axis
+  labels outside: under the bottom edge's ends and left of the left edge's
+  ends, with the number on another side (`:side :right`, say) when it
+  would collide with them.
 - **Locked** objects can't be dragged, but other objects still move over
   them: lock the boxes, frames and titles of a template, never the dots or
   stickies people should move. A locked box still counts dots dropped in.
@@ -115,7 +123,9 @@ pick: `#fff176` yellow, `#ffb74d` orange, `#e57373` red, `#81c784` green,
   and place their dots together: by position, not `:group`, which would
   make them move as one.
 - **Rating:** a `:scale-x` (one question) or `:scale-xy` (two, e.g. effort
-  × impact) with labelled ends: small `:text`s beside the axes.
+  × impact) with labelled ends: small `:text`s beside the axes. A scale
+  averages **dots**, so people rate by placing dots (one scale per thing
+  rated); stickies placed on it are fine for sorting but aren't measured.
 - **Diagram:** shapes or stickies on a grid, `:connection`s between them.
   A connection whose `:from` or `:to` is missing is kept but not drawn.
 
@@ -128,16 +138,17 @@ rather than by hand.
 1. Ask what the board is for if it isn't clear (who, how many people,
    what they will do on it); that decides sections, sizes and how many
    dots. Told not to ask: choose, and say what you chose when handing over.
-2. Write `session.edn` into a new folder, pictures into `images/` beside it.
+2. Write `session.edn` into a new folder outside the repo (a scratch or
+   the user's chosen directory), pictures into `images/` beside it.
 3. Pack it, from the dingsbums repo root:
 
    ```sh
    bb -cp src .claude/skills/dingsbums-board/pack.clj <folder> [out.tar]
    ```
 
-   It writes the tar (default `board.tar`), then reads it back through the
-   server's import and lists every object it would drop, every connection
-   to a missing object and every missing picture; it exits 1 if there is
-   any. Fix and pack again until it is clean.
+   It writes the tar (default `<folder>/board.tar`), then reads it back
+   through the server's import and lists every object it would drop, every
+   connection to a missing object and every missing picture; it exits 1 if
+   there is any. Fix and pack again until it is clean.
 4. Hand over the tar: open a session, Import, pick the file. It replaces
    the board, so a fresh session is the safe place.
