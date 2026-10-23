@@ -7,6 +7,7 @@
             [hammer.tubes :as tubes]
             [dingsbums.events :as ev]
             [dingsbums.geom :as geom]
+            [dingsbums.log]
             [dingsbums.themes :as themes]))
 
 (def board (assoc ev/initial-db :route :board :session "s1"))
@@ -518,6 +519,36 @@
       (is (= {} (get-in (ev/tube-disconnected db) [:db :peers])) "offline: nobody is known")
       (is (= [nil {}] ((juxt :you :peers) (:db (ev/route-changed db ""))))))))
 
+;; who changed what, and when
+
+(deftest element-log
+  (let [e (fn [at by what] {:at at :by by :what what})
+        db (:db (ev/log-all board {"a" [(e 1 "Ada" :created)]}))]
+    (is (= {"a" [(e 1 "Ada" :created)]} (:log db)))
+    (let [db (:db (ev/log-add db [["a" (e 2 "Bo" :moved)] ["b" (e 2 "Bo" :created)]]))]
+      (is (= [(e 1 "Ada" :created) (e 2 "Bo" :moved)] (get-in db [:log "a"])))
+      (is (= [(e 2 "Bo" :created)] (get-in db [:log "b"])))
+      (is (= {} (get-in (ev/route-changed db "") [:db :log])) "leaving the board drops it")
+      (is (= 2 (count (get-in (ev/log-add db [["a" (e 2 "Bo" :moved)]]) [:db :log "a"]))) "an entry already there: once"))
+    (testing "the lines for a selection: newest first, a group's change once with a count"
+      (let [lg {"a" [(e 1000 "Ada" :created) (e 9000 "Bo" :moved)] "b" [(e 5000 "Ada" :created) (e 9000 "Bo" :moved)]}]
+        (is (= [{:at 9000 :by "Bo" :what :moved :n 2} {:at 5000 :by "Ada" :what :created :n 1}
+                {:at 1000 :by "Ada" :what :created :n 1}]
+               (ev/log-lines lg #{"a" "b"})))
+        (is (= [{:at 9000 :by "Bo" :what :moved :n 1} {:at 1000 :by "Ada" :what :created :n 1}] (ev/log-lines lg #{"a"})))
+        (is (= [] (ev/log-lines lg #{"nope"})))
+        (is (= [{:at 6900 :by "Bo" :what :filled :n 3} {:at 1000 :by "Bo" :what :filled :n 1}]
+               (ev/log-lines {"a" [(e 5000 "Bo" :filled)] "b" [(e 5003 "Bo" :filled)] "c" [(e 6900 "Bo" :filled)]
+                              "d" [(e 1000 "Bo" :filled)]}
+                             #{"a" "b" "c" "d"}))
+            "one op per object: a group's change within 2 s is one line")))
+    (testing "times: today just the clock, else the day too"
+      (let [at (.getTime (js/Date. 2026 9 23 9 5))]
+        (is (= "09:05" (ev/format-time at (.getTime (js/Date. 2026 9 23 18 0)))))
+        (is (= "23 Oct 09:05" (ev/format-time at (.getTime (js/Date. 2026 9 24 8 0)))))
+        (is (= "23 Oct 2026 09:05" (ev/format-time at (.getTime (js/Date. 2027 0 2 8 0)))) "another year")))
+    (is (every? string? (map ev/log-label dingsbums.log/actions)) "every action has words")))
+
 ;; tube wiring, through hammer with a fake WebSocket
 
 (def sockets (atom []))
@@ -558,6 +589,10 @@
     (push! ws [:presence/update {:id "u2" :color 1 :name "Bo"}])
     (t/flush!)
     (is (= {"u2" {:id "u2" :color 1 :name "Bo"}} (:peers @state/app-db)) "presence comes in")
+    (push! ws [:log/all {"a" [{:at 1 :by "Bo" :what :created}]}])
+    (push! ws [:log/add [["a" {:at 2 :by "Bo" :what :moved}]]])
+    (t/flush!)
+    (is (= [:created :moved] (mapv :what (get-in @state/app-db [:log "a"]))) "and the log")
     (dispatch-sync [:history/undo])
     (is (= (pr-str [:op/upsert [sticky]]) (last (sent))))
     (t/check-errors!)))

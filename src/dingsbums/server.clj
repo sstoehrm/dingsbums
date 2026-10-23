@@ -4,6 +4,7 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]
+            [dingsbums.log :as log]
             [dingsbums.ops :as ops]
             [dingsbums.sessions :as s]
             [dingsbums.tar :as tar]
@@ -58,6 +59,8 @@
       (= ev [:session/hello])
       (if-let [sess (get @s/sessions sid)]
         (do (http/send! ch (pr-str [:session/snapshot (:objects sess)]))
+            ;; deleted objects' too: an undo brings one back with its history
+            (http/send! ch (pr-str [:log/all (:log sess)]))
             (locking presence-lock
               (let [clients (get-in @s/sessions [sid :clients])]
                 (when-let [me (get clients ch)]
@@ -71,10 +74,15 @@
         (when-let [me (get-in (swap! s/sessions s/set-presence sid ch (second ev)) [sid :clients ch])]
           (send-to! sid ch (pr-str [:presence/update (assoc (second ev) :id (:id me))]))))
 
+      ;; the op to the others, then what it did to everyone: the sender
+      ;; learns the server's name and time for it too
       (ops/op? ev)
-      (let [[op arg] ev]
-        (swap! s/sessions (case op :op/upsert s/upsert :op/patch s/patch :op/delete s/delete) sid arg)
-        (send-to! sid ch (pr-str ev))))))
+      (let [by (or (get-in @s/sessions [sid :clients ch :name]) "Guest")
+            t (now)
+            [old _] (swap-vals! s/sessions s/apply-op sid ev by t)
+            entries (when-let [{:keys [objects log]} (get old sid)] (log/entries objects log ev by t))]
+        (send-to! sid ch (pr-str ev))
+        (when (seq entries) (send-to! sid nil (pr-str [:log/add entries])))))))
 
 (defn- ws [req sid]
   (http/as-channel req
@@ -90,10 +98,11 @@
                      (when me (send-to! sid nil (pr-str [:presence/left (:id me)]))))))}))
 
 (defn- import! [sid ^java.io.InputStream body]
-  (if-let [objects (try (tar/import-session (if body (.readAllBytes body) (byte-array 0)))
-                        (catch Exception _ nil))]
-    (do (swap! s/sessions s/replace-objects sid objects)
+  (if-let [{:keys [objects log]} (try (tar/import-session (if body (.readAllBytes body) (byte-array 0)))
+                                     (catch Exception _ nil))]
+    (do (swap! s/sessions s/replace-objects sid objects log)
         (send-to! sid nil (pr-str [:session/snapshot objects]))
+        (send-to! sid nil (pr-str [:log/all log]))
         {:status 204})
     {:status 400 :body "not a dingsbums export"}))
 
@@ -126,7 +135,7 @@
         {:status 200
          :headers {"Content-Type" "application/x-tar"
                    "Content-Disposition" (str "attachment; filename=\"dingsbums-" sid ".tar\"")}
-         :body (java.io.ByteArrayInputStream. (tar/export-session (get-in @s/sessions [sid :objects])))}
+         :body (java.io.ByteArrayInputStream. (let [{:keys [objects log]} (get @s/sessions sid)] (tar/export-session objects log)))}
         (and (= action "import") (= request-method :post)) (import! sid (:body req))
         :else {:status 405 :body "method not allowed"})
 

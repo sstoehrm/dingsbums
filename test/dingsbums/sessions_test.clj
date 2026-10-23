@@ -7,12 +7,22 @@
 
 (deftest create-and-object-ops
   (let [m (s/create {} "s1" 100)]
-    (is (= {:objects {} :clients {} :empty-since 100} (get m "s1")))
+    (is (= {:objects {} :log {} :clients {} :empty-since 100} (get m "s1")))
     (is (= {"a" a "ab" ab} (get-in (s/upsert m "s1" [a ab]) ["s1" :objects])))
     (is (= {} (get-in (-> m (s/upsert "s1" [a ab]) (s/delete "s1" ["a"])) ["s1" :objects])))
     (is (= {"x" a} (get-in (s/replace-objects m "s1" {"x" a}) ["s1" :objects])))
     (is (= m (s/upsert m "nope" [a])) "unknown session: no-op, nothing created")
     (is (= m (s/join m "nope" :ch "u")))))
+
+(deftest ops-are-applied-and-logged
+  (let [m (-> {} (s/create "s1" 0) (s/apply-op "s1" [:op/upsert [a]] "Ada" 10) (s/apply-op "s1" [:op/delete ["a"]] "Bo" 20))]
+    (is (= {} (get-in m ["s1" :objects])))
+    (is (= [{:at 10 :by "Ada" :what :created} {:at 20 :by "Bo" :what :deleted}] (get-in m ["s1" :log "a"])))
+    (is (= m (s/apply-op m "nope" [:op/upsert [a]] "Ada" 30)))
+    (is (= {"x" a} (get-in (s/replace-objects m "s1" {"x" a} {"x" [{:at 1 :by "Cy" :what :created}]}) ["s1" :objects])))
+    (is (= {"x" [{:at 1 :by "Cy" :what :created}]}
+           (get-in (s/replace-objects m "s1" {"x" a} {"x" [{:at 1 :by "Cy" :what :created}]}) ["s1" :log]))
+        "an import brings its log")))
 
 (deftest join-and-leave-track-idle-time
   (let [m (-> {} (s/create "s1" 100) (s/join "s1" :c1 "u1") (s/join "s1" :c2 "u2"))]

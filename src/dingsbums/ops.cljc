@@ -63,10 +63,15 @@
 
 (defn- finite? [x] (and (number? x) #?(:clj (Double/isFinite (double x)) :cljs (js/isFinite x))))
 
+(defn valid-name?
+  "s is a user's name: 1–32 characters, no control characters."
+  [s]
+  (and (string? s) (<= 1 (count s) max-name-length) (not (re-find #"[\x00-\x1f\x7f]" s))))
+
 (def ^:private presence-ok
   "What a client may say about itself, with the check each value must pass. Its
   id and colour come from the server."
-  {:name #(and (string? %) (<= 1 (count %) max-name-length) (not (re-find #"[\x00-\x1f\x7f]" %)))
+  {:name valid-name?
    :cursor #(or (nil? %) (and (vector? %) (= 2 (count %)) (every? finite? %)))
    :selection #(and (vector? %) (<= (count %) max-selection) (every? (:id field-ok) %))})
 

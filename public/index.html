@@ -139,6 +139,12 @@
   .sel-menu.column button { display: flex; align-items: center; gap: 10px; padding: 8px 10px; white-space: nowrap;
     text-align: left; border-color: transparent; }
   .sel-menu.column .icon { width: 16px; height: 16px; }
+  .sel-menu.log { left: auto; right: -7px; margin: 0; padding: 4px; list-style: none; min-width: 260px;
+    max-height: 150px; overflow-y: auto; }
+  .sel-menu.log li { display: flex; gap: 6px; padding: 6px 8px; font-size: 13px; white-space: nowrap; }
+  .sel-menu.log .by { font-weight: 600; color: var(--text-strong); }
+  .sel-menu.log time { margin-left: auto; padding-left: 16px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .sel-menu.log .empty { color: var(--text-muted); }
   .sel-menu kbd { margin-left: auto; padding-left: 16px; font: inherit; font-size: 12px; color: var(--text-muted); }
   .text-editor { position: absolute; z-index: 3; margin: 0; border: none; outline: 1px solid var(--accent);
     background: transparent; resize: none; overflow: hidden; line-height: 1.2; }

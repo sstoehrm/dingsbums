@@ -1,9 +1,11 @@
 (ns dingsbums.sessions
-  "All sessions in one atom: {sid {:objects {id obj} :clients {ch user} :empty-since ms-or-nil}},
+  "All sessions in one atom: {sid {:objects {id obj} :log log :clients {ch user} :empty-since ms-or-nil}}
+  (log: see dingsbums.log),
   a user being {:id :color} plus the presence it sent (:name :cursor :selection).
   The fns below are pure over that map; server.clj swap!s them in. Every fn is a
   no-op for an unknown sid."
-  (:require [dingsbums.ops :as ops]))
+  (:require [dingsbums.log :as log]
+            [dingsbums.ops :as ops]))
 
 (def idle-ms (* 15 60 1000))
 
@@ -11,7 +13,7 @@
 
 (defn new-id [] (str (random-uuid)))
 
-(defn create [m sid now] (assoc m sid {:objects {} :clients {} :empty-since now}))
+(defn create [m sid now] (assoc m sid {:objects {} :log {} :clients {} :empty-since now}))
 
 (defn- when-exists [m sid f] (if (contains? m sid) (f m) m))
 
@@ -21,7 +23,21 @@
 
 (defn delete [m sid ids] (when-exists m sid #(update-in % [sid :objects] ops/delete ids)))
 
-(defn replace-objects [m sid objects] (when-exists m sid #(assoc-in % [sid :objects] objects)))
+(defn apply-op
+  "m with op ev ([op arg], ops/op?) applied to the session's objects and logged
+  as `by` at now."
+  [m sid [op arg :as ev] by now]
+  (when-exists m sid (fn [m]
+                       (let [{:keys [objects log]} (get m sid)]
+                         (-> m
+                             (update-in [sid :log] log/add (log/entries objects log ev by now))
+                             (update-in [sid :objects] (case op :op/upsert ops/upsert :op/patch ops/patch :op/delete ops/delete)
+                                        arg))))))
+
+(defn replace-objects
+  "m with the session's board replaced, e.g. by an import, and its log with it."
+  ([m sid objects] (replace-objects m sid objects {}))
+  ([m sid objects lg] (when-exists m sid #(update % sid assoc :objects objects :log lg))))
 
 (defn- free-color
   "The lowest colour index no client of the session has."

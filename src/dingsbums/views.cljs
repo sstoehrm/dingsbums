@@ -235,7 +235,7 @@
 (def ^:private menu-room 170)
 
 (defc selection-toolbar [] [sel [:selection] objects [:objects] cam [:camera] drag [:drag] editing [:editing]
-                            sel-menu [:sel-menu] viewport [:viewport]
+                            sel-menu [:sel-menu] viewport [:viewport] lg [:log]
                             vw (first viewport)
                             menu (events/open-menu sel-menu sel)
                             os (vec (keep #(get objects %) sel))
@@ -304,6 +304,19 @@
    [:button {:on-click [:selection/lock (not locked?)]} (if locked? "Unlock" "Lock")]
    [:button {:hidden (not groupable?) :on-click [:selection/group]} "Group"]
    [:button {:hidden (not grouped?) :on-click [:selection/ungroup]} "Ungroup"]
+   ;; who changed it and when, newest first
+   [:span.menu
+    [:button {:title "Who changed this, and when" :class (when (= menu :log) "active") :on-click [:selection/menu :log]}
+     "History"]
+    (when (= menu :log)
+      (let [lines (events/log-lines lg sel) now (js/Date.now)]
+        [:ol.sel-menu.column.log {:aria-label "History"}
+         (if (empty? lines)
+           [:li.empty "No changes recorded"]
+           (for [{:keys [at by what n]} lines]
+             ^{:key (str at by what)}
+             [:li [:span.by by] [:span (events/log-label what) (when (> n 1) (str " (" n ")"))]
+              [:time {:dateTime (.toISOString (js/Date. at))} (events/format-time at now)]]))]))]
    [:button {:on-click [:selection/delete]} "Delete"]])
 
 (defn- edit-keydown [^js e]
