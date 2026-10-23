@@ -546,7 +546,12 @@
                (ev/log-lines {"a" [(e 5000 "Bo" :filled)] "b" [(e 5003 "Bo" :filled)] "c" [(e 6900 "Bo" :filled)]
                               "d" [(e 1000 "Bo" :filled)]}
                              #{"a" "b" "c" "d"}))
-            "one op per object: a group's change within 2 s is one line")))
+            "one op per object: a group's change within 2 s is one line")
+        (let [ids (map str (range 20))
+              ls (ev/log-lines (zipmap ids (map #(vector (e 7000 (if (even? %) "Ada" "Bo") :moved)) (range 20))) ids)]
+          (is (= [{:at 7000 :by "Ada" :what :moved :n 10} {:at 7000 :by "Bo" :what :moved :n 10}] ls)
+              "two people's changes interleaved in one ms: a line each")
+          (is (apply distinct? (map (juxt :at :by :what) ls)) "each line its own key"))))
     (testing "times: today just the clock, else the day too"
       (let [at (.getTime (js/Date. 2026 9 23 9 5))]
         (is (= "09:05" (ev/format-time at (.getTime (js/Date. 2026 9 23 18 0)))))

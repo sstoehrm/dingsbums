@@ -204,10 +204,11 @@
 
 (defn log-lines
   "The log of the objects ids, newest first, as [{:at :by :what :n}]: a change
-  made to several of them at once (a group moved) is one line, :n of them."
+  made to several of them at once (a group moved) is one line, :n of them.
+  Alike entries of one ms sort together, so no two lines share :at :by :what."
   [lg ids]
   (->> (mapcat #(get lg %) (set ids))
-       (sort-by :at >)
+       (sort-by (juxt (comp - :at) :by :what))
        (reduce (fn [lines {:keys [at by what]}]
                  (let [l (peek lines)]
                    (if (and l (= by (:by l)) (= what (:what l)) (< (- (:last l) at) together-ms))
