@@ -25,7 +25,7 @@
 (def hit-px 6)
 (def max-image-chars 15000000)
 (def remote-events #{:op/upsert :op/patch :op/delete :session/snapshot :session/missing})
-(def creating-tools #{:text :frame :shape :sticky})
+(def creating-tools #{:text :frame :shape :sticky :dot :counter :scale-x :scale-xy})
 
 (reg-fx :tube/send (fn [evs] (run! tubes/send! evs)))
 (reg-fx :set-hash (fn [h] (set! (.-hash js/location) h)))
@@ -160,6 +160,10 @@
       :text (place "a text" "T")
       :frame (place "a frame" "F")
       :sticky (place "a sticky note" "N")
+      :dot (place "a dot" "D")
+      :counter (place "a box that counts the dots in it" "C")
+      :scale-x (place "a scale that averages its dots' x" "X")
+      :scale-xy (place "a scale that averages its dots' x and y" "Y")
       :shape (str "Click or drag on the board to place a " ({:rect "rectangle"} shape-kind (name shape-kind))
                   " · S for the next shape, Esc to cancel")
       :connection "Drag from one object to another to connect them · L or Esc to cancel"
@@ -294,7 +298,8 @@
 (defn- create-object [db {:keys [kind start]} end]
   (let [r (geom/rect-from-points start end)
         [dw dh] (model/default-size kind)
-        rect (if (and (< (:w r) 5) (< (:h r) 5))
+        ;; a dot is always placed like a click: dots in a vote stay alike
+        rect (if (or (= kind :dot) (and (< (:w r) 5) (< (:h r) 5)))
                {:x (- (first start) (/ dw 2)) :y (- (second start) (/ dh 2)) :w dw :h dh}
                (-> r (update :w max geom/min-size) (update :h max geom/min-size)))
         o (model/make (:objects db) kind rect (when (= kind :shape) {:shape (:shape-kind db)}))]
@@ -362,6 +367,7 @@
 (defn selection-group [db] (change-selection db model/group-changes))
 (defn selection-ungroup [db] (change-selection db model/ungroup-changes))
 (defn selection-layer [db move] (change-selection db model/layer-changes move))
+(defn selection-side [db side] (change-selection db model/side-changes side))
 
 (defn open-menu
   "The selection toolbar's open menu (:fill or :layer), or nil. It belongs to the
@@ -373,6 +379,13 @@
   {:db (assoc db :sel-menu (when-not (= menu (open-menu (:sel-menu db) (:selection db)))
                              {:menu menu :for (:selection db)}))})
 (defn selection-delete [db] (change-selection db model/delete-changes))
+
+(defn selection-nudge
+  "Moves the selection by dx dy; repeat? (a held key) keeps it one undo step."
+  [db dx dy repeat?]
+  (when-not (:drag db)
+    (let [[db' ops] (model/nudge db (:selection db) dx dy repeat?)]
+      (when (seq ops) (with-ops db' ops)))))
 (defn selection-clear [db] {:db (assoc db :selection #{} :tool :select)})
 
 ;; history
@@ -513,6 +526,8 @@
 
 ;; keys
 
+(def ^:private arrows {"ArrowLeft" [-1 0] "ArrowRight" [1 0] "ArrowUp" [0 -1] "ArrowDown" [0 1]})
+
 (defn key-action
   "The event for a key press outside text inputs, or nil to leave it to the browser."
   [{:keys [key ctrl? shift? alt? repeat?]}]
@@ -526,12 +541,16 @@
       (#{"Delete" "Backspace"} key) [:selection/delete]
       (= key "Escape") [:selection/clear]
       (= key " ") [:space true]
+      (and (not alt?) (arrows key)) (let [step (if shift? 10 1)
+                                          [dx dy] (arrows key)]
+                                      [:selection/nudge (* step dx) (* step dy) (boolean repeat?)])
       (or alt? repeat?) nil
       (= key "Home") [:selection/layer :front]
       (= key "End") [:selection/layer :back]
       (= k "s") [:tool/shapes]
       (= k "h") [:hand/toggle]
-      :else (when-let [tool ({"v" :select "t" :text "f" :frame "n" :sticky "l" :connection} k)]
+      :else (when-let [tool ({"v" :select "t" :text "f" :frame "n" :sticky "l" :connection
+                              "d" :dot "c" :counter "x" :scale-x "y" :scale-xy} k)]
               [:tool/select tool]))))
 
 (doseq [[id f] {:route/changed route-changed
@@ -578,8 +597,10 @@
                 :selection/group selection-group
                 :selection/ungroup selection-ungroup
                 :selection/layer selection-layer
+                :selection/side selection-side
                 :selection/menu menu-toggle
                 :selection/delete selection-delete
+                :selection/nudge selection-nudge
                 :selection/clear selection-clear
                 :history/undo history-undo
                 :history/redo history-redo

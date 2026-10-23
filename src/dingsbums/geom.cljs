@@ -82,11 +82,16 @@
         t (min 1 tx ty)]
     [(+ cx (* dx t)) (+ cy (* dy t))]))
 
-(defn layer [o] (case (:kind o) :frame 0 :connection 1 2))
+(def box-kinds
+  "Boxes that measure the dots in them: a counter counts them, a scale
+  averages their position on one axis (x) or two (x, y)."
+  #{:counter :scale-x :scale-xy})
+
+(defn layer [{:keys [kind]}] (cond (or (= :frame kind) (box-kinds kind)) 0 (= :connection kind) 1 :else 2))
 
 (defn draw-order
-  "Objects bottom to top: frames, then connections, then everything else; :z
-  within (none counts as 0)."
+  "Objects bottom to top: frames and measuring boxes, then connections, then
+  everything else; :z within (none counts as 0)."
   [objects]
   (sort-by (juxt layer #(:z % 0)) (vals objects)))
 
@@ -103,7 +108,7 @@
     (= :connection (:kind o))
     (when-let [[a b] (endpoints objects o)] (<= (seg-dist p a b) tol))
 
-    (and (= :shape (:kind o)) (= :circle (:shape o)))
+    (or (= :dot (:kind o)) (and (= :shape (:kind o)) (= :circle (:shape o))))
     (let [[cx cy] (center o)]
       (<= (+ (sq (/ (- px cx) (/ (:w o) 2))) (sq (/ (- py cy) (/ (:h o) 2)))) 1))
 
@@ -131,6 +136,26 @@
   "Ids of the objects lying fully inside rect."
   [objects rect]
   (keep (fn [[id o]] (when-let [r (obj-rect objects o)] (when (contains-rect? rect r) id))) objects))
+
+;; measuring boxes
+
+(defn dots-in
+  "The dots whose center lies in box; its right and bottom edge belong to the
+  next box, so touching boxes never both count a dot."
+  [objects {:keys [x y w h]}]
+  (filter #(and (= :dot (:kind %))
+                (let [[cx cy] (center %)] (and (<= x cx) (< cx (+ x w)) (<= y cy) (< cy (+ y h)))))
+          (vals objects)))
+
+(defn average
+  "[x y]: the mean position of dots in box, each 0–1 from its left and its
+  bottom edge; nil for no dots."
+  [{:keys [x y w h]} dots]
+  (when (seq dots)
+    (let [n (count dots)
+          mean (fn [f] (/ (reduce + (map f dots)) n))]
+      [(mean #(/ (- (first (center %)) x) w))
+       (mean #(- 1 (/ (- (second (center %)) y) h)))])))
 
 ;; handles
 

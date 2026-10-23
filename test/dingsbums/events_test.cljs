@@ -38,6 +38,14 @@
   (is (= [:space true] (ev/key-action {:key " "})))
   (is (= [:selection/layer :front] (ev/key-action {:key "Home"})))
   (is (= [:selection/layer :back] (ev/key-action {:key "End"})))
+  (is (= [:selection/nudge -1 0 false] (ev/key-action {:key "ArrowLeft"})))
+  (is (= [:selection/nudge 1 0 false] (ev/key-action {:key "ArrowRight"})))
+  (is (= [:selection/nudge 0 -1 false] (ev/key-action {:key "ArrowUp"})))
+  (is (= [:selection/nudge 0 1 false] (ev/key-action {:key "ArrowDown"})))
+  (is (= [:selection/nudge 0 10 false] (ev/key-action {:key "ArrowDown" :shift? true})) "Shift: 10")
+  (is (= [:selection/nudge 1 0 true] (ev/key-action {:key "ArrowRight" :repeat? true})) "held keys repeat")
+  (is (nil? (ev/key-action {:key "ArrowLeft" :alt? true})) "Alt+arrow is the browser's back/forward")
+  (is (nil? (ev/key-action {:key "ArrowLeft" :ctrl? true})))
   (is (nil? (ev/key-action {:key "c" :ctrl? true})) "browser copy untouched")
   (is (nil? (ev/key-action {:key "a"}))))
 
@@ -61,7 +69,8 @@
   (is (= 800 (ev/wheel-px 1 2 800)) "pages"))
 
 (deftest tool-keys
-  (doseq [[k tool] {"v" :select "t" :text "f" :frame "n" :sticky "l" :connection}]
+  (doseq [[k tool] {"v" :select "t" :text "f" :frame "n" :sticky "l" :connection
+                    "d" :dot "c" :counter "x" :scale-x "y" :scale-xy}]
     (is (= [:tool/select tool] (ev/key-action {:key k})) k))
   (is (= [:tool/select :text] (ev/key-action {:key "T"})) "caps lock")
   (is (= [:tool/select :text] (ev/key-action {:key "T" :shift? true})) "with shift too: the tooltips show capitals")
@@ -82,7 +91,8 @@
   (is (= "Click or drag on the board to place a sticky note · N or Esc to cancel" (ev/tool-hint :sticky :rect)))
   (is (= "Click or drag on the board to place a star · S for the next shape, Esc to cancel" (ev/tool-hint :shape :star)))
   (is (= "Drag from one object to another to connect them · L or Esc to cancel" (ev/tool-hint :connection :rect)))
-  (doseq [t [:text :frame]] (is (string? (ev/tool-hint t :rect)) t)))
+  (is (= "Click or drag on the board to place a dot · D or Esc to cancel" (ev/tool-hint :dot :rect)))
+  (doseq [t [:text :frame :counter :scale-x :scale-xy]] (is (string? (ev/tool-hint t :rect)) t)))
 
 (deftest theme
   (let [fx (ev/theme-select board :nord)]
@@ -153,6 +163,14 @@
   (testing "shapes take the picked shape"
     (is (= :star (:shape (first (objects-of (drag (assoc board :tool :shape :shape-kind :star) [0 0] [0 0]))))))
     (is (= :circle (get-in (ev/select-shape board :circle) [:db :shape-kind]))))
+  (testing "dots and measuring boxes"
+    (is (= [{:kind :dot :x 288 :y 288 :w 24 :h 24 :fill "#e57373"}]
+           (map #(select-keys % [:kind :x :y :w :h :fill]) (objects-of (drag (assoc board :tool :dot) [300 300] [300 300])))))
+    (is (= [{:x 288 :y 288 :w 24 :h 24}]
+           (map #(select-keys % [:x :y :w :h]) (objects-of (drag (assoc board :tool :dot) [300 300] [340 310]))))
+        "a dot keeps its size: a shaky click still places it where it started")
+    (doseq [k [:counter :scale-x :scale-xy]]
+      (is (= [k] (map :kind (objects-of (drag (assoc board :tool k) [0 0] [0 0])))) k)))
   (testing "the tool at the press counts, not a key pressed mid-drag"
     (let [db (:db (ev/pointer-down (assoc board :tool :sticky) (pe 0 0)))
           fx (ev/pointer-up (:db (ev/select-tool db :select)) (pe 0 0 :t 100))]
@@ -310,11 +328,29 @@
     (is (every? :locked? (objects-of (ev/selection-lock db true))))
     (is (= "#e57373" (get-in (ev/selection-fill db "#e57373") [:db :objects "b" :fill])))
     (is (= "#64b5f6" (get-in (ev/selection-text-color db "#64b5f6") [:db :objects "a" :color])))
+    (let [box {:id "m" :kind :counter :x 0 :y 0 :w 100 :h 100 :z 1}
+          fx (ev/selection-side (assoc db :objects {"m" box} :selection #{"m"}) :top)]
+      (is (= [[:op/upsert [(assoc box :side :top)]]] (:tube/send fx)) "the side of a box"))
     (let [fx (ev/selection-layer (assoc db :selection #{"a"}) :front)]
       (is (= ["b" "a"] (mapv :id (geom/draw-order (get-in fx [:db :objects])))))
       (is (= [[:op/upsert [(assoc sticky :z 3)]]] (:tube/send fx)))
       (is (= 1 (count (get-in fx [:db :history :undo])))))
     (is (= {:selection #{} :tool :select} (select-keys (:db (ev/selection-clear (assoc db :tool :text))) [:selection :tool])))))
+
+(deftest arrow-keys-nudge
+  (let [fx (ev/selection-nudge (assoc with-objs :selection #{"a" "b"}) 10 -1 false)]
+    (is (= [[10 -1] [210 -1]] (map #(mapv (get-in fx [:db :objects %]) [:x :y]) ["a" "b"])))
+    (is (= #{{:id "a" :x 10 :y -1 :w 100 :h 100} {:id "b" :x 210 :y -1 :w 100 :h 100}}
+           (set (second (first (:tube/send fx))))))
+    (is (= {"a" sticky "b" shape} (get-in (ev/history-undo (:db fx)) [:db :objects])) "one undo step back"))
+  (testing "an image sends its geometry, never its :src"
+    (let [img {:id "i" :kind :image :x 0 :y 0 :w 10 :h 10 :z 1 :src "data:image/png;base64,AAAA"}
+          fx (ev/selection-nudge (assoc board :objects {"i" img} :selection #{"i"}) 1 0 false)]
+      (is (= [[:op/patch [{:id "i" :x 1 :y 0 :w 10 :h 10}]]] (:tube/send fx)))))
+  (testing "locked objects stay put; nothing selected or a drag going on: nothing happens"
+    (is (nil? (ev/selection-nudge (-> with-objs (assoc :selection #{"a"}) (assoc-in [:objects "a" :locked?] true)) 1 0 false)))
+    (is (nil? (ev/selection-nudge with-objs 1 0 false)))
+    (is (nil? (ev/selection-nudge (:db (ev/pointer-down with-objs (pe 10 10))) 1 0 false)))))
 
 (deftest undo-redo-events
   (let [fx (ev/selection-delete (assoc with-objs :selection #{"a"}))

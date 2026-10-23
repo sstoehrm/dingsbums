@@ -37,11 +37,17 @@ can't think of right now. That's what a whiteboard is full of.
 
 - Frames, sticky notes, text, shapes (circle, rectangle, star, arrow) and
   connections between them.
+- Dots and boxes that measure them, for dot voting: a counting box shows how
+  many dots lie in it, a scale the average position of its dots from 0 to 10
+  along x, a two-axis scale along x and y (y counts up). The number sits below
+  the box, or above, left or right, picked in the toolbar above it.
 - Fill and text colours, groups, locking, undo/redo.
 - Layering: bring a selection (or group) to the front, forward, backward or
   to the back from the toolbar above it; Home and End for front and back.
 - Drag the grip at the left of that toolbar to move the selection: handy for
   small objects or when zoomed far out, where the resize handles cover them.
+- The arrow keys move a selection by one unit, with Shift by ten; holding a
+  key is one step to undo.
 - Paste images and text straight onto the board.
 - Copy and paste (Ctrl+C, Ctrl+V) whatever is selected, images included, also
   into another board: the copies keep their layout and the connections
@@ -54,7 +60,8 @@ can't think of right now. That's what a whiteboard is full of.
   pan, the wheel zooms, Shift- or Ctrl-drag draws a selection box (Shift adds
   to the selection). This browser remembers it.
 - Keys for the tools: V select, T text, F frame, S shapes (again: the next
-  shape), N sticky note, L connection. Picking the active tool again, by key
+  shape), N sticky note, L connection, D dot, C counting box, X scale, Y
+  two-axis scale. Picking the active tool again, by key
   or button, goes back to Select; a hint at the bottom says what to do.
 - Export a board as a `.tar` and import it again.
 - A quiet parchment look by default, twelve more colour themes, or follow

@@ -49,3 +49,12 @@
   (is (= {"a" a} (ops/patch {"a" a} [{:id "a" :x "7"} {:id "a" :text "x"}])) "geometry numbers only")
   (is (ops/op? [:op/patch [{:id "a" :x 1 :y 2}]]))
   (is (not (ops/op? [:op/patch [{:id "a" :fill "red"}]]))))
+
+(deftest dots-and-measuring-boxes-are-objects
+  (is (ops/valid-object? {:id "d" :kind :dot :x 0 :y 0 :w 24 :h 24 :fill "#e57373"}))
+  (doseq [k [:counter :scale-x :scale-xy]]
+    (is (ops/valid-object? {:id "m" :kind k :x 0 :y 0 :w 300 :h 200}) k))
+  (doseq [s [:top :bottom :left :right]]
+    (is (ops/valid-object? {:id "m" :kind :counter :side s}) s))
+  (is (not (ops/valid-object? {:id "m" :kind :counter :side :middle})))
+  (is (not (ops/valid-object? {:id "m" :kind :counter :side "top"}))))

@@ -4,8 +4,9 @@
 (def ^:private field-ok
   "Every key an object may have, with the check its value must pass."
   {:id #(and (string? %) (re-matches #"[A-Za-z0-9_-]{1,64}" %))
-   :kind #{:text :frame :shape :sticky :image :connection}
+   :kind #{:text :frame :shape :sticky :image :connection :dot :counter :scale-x :scale-xy}
    :shape #{:circle :rect :star :arrow}
+   :side #{:top :bottom :left :right}
    :x number? :y number? :w number? :h number? :z number?
    :fill #(or (nil? %) (string? %))
    :text string? :color string? :src string? :from string? :to string? :group string?
