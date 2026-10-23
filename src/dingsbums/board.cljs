@@ -134,7 +134,7 @@
 (defn- average!
   "The average position of a scale's dots: a line across a one-axis scale, a
   crosshair on a two-axis one."
-  [^js ctx dots {:keys [x y w h kind] :as o} theme zoom]
+  [^js ctx dots {:keys [x y w h kind] :as o} theme]
   (when-let [[ax ay] (geom/average o dots)]
     (let [px (+ x (* ax w)) py (- (+ y h) (* ay h))]
       (set! (.-strokeStyle ctx) (:accent theme))
@@ -142,7 +142,7 @@
       (.beginPath ctx)
       (if (= :scale-x kind)
         (do (.moveTo ctx px y) (.lineTo ctx px (+ y h)) (.stroke ctx))
-        (do (.setLineDash ctx #js [(/ 6 zoom) (/ 4 zoom)])
+        (do (.setLineDash ctx #js [6 4])
             (.moveTo ctx px y) (.lineTo ctx px (+ y h))
             (.moveTo ctx x py) (.lineTo ctx (+ x w) py)
             (.stroke ctx)
@@ -167,7 +167,7 @@
     (set! (.-textBaseline ctx) baseline)
     (.fillText ctx (model/readout o dots) tx ty)))
 
-(defn- box! [^js ctx objects {:keys [x y w h kind] :as o} theme zoom]
+(defn- box! [^js ctx objects {:keys [x y w h kind] :as o} theme]
   (let [dots (geom/dots-in objects o)]
     (.save ctx)
     (set! (.-strokeStyle ctx) (:sub theme))
@@ -176,7 +176,7 @@
     (.stroke ctx)
     (when (not= :counter kind)
       (ticks! ctx o theme)
-      (average! ctx dots o theme zoom))
+      (average! ctx dots o theme))
     (readout! ctx dots o theme)
     (.restore ctx)))
 
@@ -225,7 +225,7 @@
              (path! ctx (assoc o :shape :circle))
              (.fill ctx)
              (hairline-if-blends! ctx fill theme zoom))
-      (:counter :scale-x :scale-xy) (box! ctx objects o theme zoom)
+      (:counter :scale-x :scale-xy) (box! ctx objects o theme)
       :image (let [^js img (image (:src o))]
                (if (and (.-complete img) (pos? (.-naturalWidth img)))
                  (.drawImage ctx img x y w h)
