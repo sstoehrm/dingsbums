@@ -83,3 +83,16 @@
   (is (< 1 (count (:lines (g/fit-text measure (apply str (repeat 100 "x")) 116 116)))) "breaks a word too long for any size")
   (is (= ["a" "" "b"] (g/wrap measure "a\n\nb" 10 1000)) "newlines kept")
   (is (= ["abcdef" "ghij"] (g/wrap measure "abcdefghij" 10 30)) "long words break by character"))
+
+(deftest measuring-boxes-hold-their-dots
+  (let [box {:id "m" :kind :scale-xy :x 0 :y 0 :w 100 :h 200 :z 5}
+        dot (fn [id cx cy] {:id id :kind :dot :x (- cx 10) :y (- cy 10) :w 20 :h 20 :z 1})
+        os {"m" box "d1" (dot "d1" 20 150) "d2" (dot "d2" 80 50) "out" (dot "out" 110 50)
+            "s" {:id "s" :kind :sticky :x 10 :y 10 :w 20 :h 20 :z 2}}]
+    (is (= #{"d1" "d2"} (set (map :id (g/dots-in os box)))) "only dots, by their center")
+    (is (= [0.5 0.5] (g/average box (g/dots-in os box))) "x from the left, y from the bottom")
+    (is (= [0.2 0.25] (g/average box [(os "d1")])))
+    (is (nil? (g/average box [])))
+    (is (= ["m" "d1"] (map :id (g/draw-order (select-keys os ["m" "d1"])))) "boxes draw below the dots, like frames")
+    (is (= "d1" (:id (g/hit os [20 150] 3))))
+    (is (= "m" (:id (g/hit os [11 141] 3))) "a dot is round: its bbox corner misses it")))

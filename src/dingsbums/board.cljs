@@ -82,6 +82,89 @@
     (.closePath ctx)
     (.fill ctx)))
 
+(def ^:private readout-size 24)
+(def ^:private tick-size 12)
+
+(defn- ticks!
+  "0 to scale-max along the bottom edge, and the left one for two axes; labels
+  every 5, inside the box."
+  [^js ctx {:keys [x y w h kind]} theme]
+  (let [n model/scale-max
+        end (fn [i first last mid] (cond (zero? i) first (= n i) last :else mid))]
+    (set! (.-strokeStyle ctx) (:text-muted theme))
+    (set! (.-fillStyle ctx) (:text-muted theme))
+    (set! (.-lineWidth ctx) 1)
+    (set! (.-font ctx) (str tick-size font))
+    (doseq [i (range (inc n))
+            :let [major? (zero? (mod i 5))
+                  len (if major? 10 5)
+                  tx (+ x (* w (/ i n)))
+                  ty (- (+ y h) (* h (/ i n)))]]
+      (.beginPath ctx)
+      (.moveTo ctx tx (+ y h))
+      (.lineTo ctx tx (- (+ y h) len))
+      (when (= :scale-xy kind)
+        (.moveTo ctx x ty)
+        (.lineTo ctx (+ x len) ty))
+      (.stroke ctx)
+      (when major?
+        (set! (.-textBaseline ctx) "bottom")
+        (set! (.-textAlign ctx) (end i "left" "right" "center"))
+        (.fillText ctx (str i) tx (- (+ y h) 12))
+        ;; the y axis's 0 is the x axis's
+        (when (and (= :scale-xy kind) (pos? i))
+          (set! (.-textBaseline ctx) (end i "bottom" "top" "middle"))
+          (set! (.-textAlign ctx) "left")
+          (.fillText ctx (str i) (+ x 12) ty))))))
+
+(defn- average!
+  "The average position of a scale's dots: a line across a one-axis scale, a
+  crosshair on a two-axis one."
+  [^js ctx objects {:keys [x y w h kind] :as o} theme zoom]
+  (when-let [[ax ay] (geom/average o (geom/dots-in objects o))]
+    (let [px (+ x (* ax w)) py (- (+ y h) (* ay h))]
+      (set! (.-strokeStyle ctx) (:accent theme))
+      (set! (.-lineWidth ctx) 2)
+      (.beginPath ctx)
+      (if (= :scale-x kind)
+        (do (.moveTo ctx px y) (.lineTo ctx px (+ y h)) (.stroke ctx))
+        (do (.setLineDash ctx #js [(/ 6 zoom) (/ 4 zoom)])
+            (.moveTo ctx px y) (.lineTo ctx px (+ y h))
+            (.moveTo ctx x py) (.lineTo ctx (+ x w) py)
+            (.stroke ctx)
+            (.setLineDash ctx #js [])
+            (.beginPath ctx)
+            (.arc ctx px py 6 0 (* 2 js/Math.PI))
+            (set! (.-fillStyle ctx) (:accent theme))
+            (.fill ctx))))))
+
+(defn- readout!
+  "What a measuring box measured, outside it on its :side (default bottom)."
+  [^js ctx objects {:keys [x y w h side] :as o} theme]
+  (let [gap 8
+        [tx ty align baseline] (case side
+                                 :top [(+ x (/ w 2)) (- y gap) "center" "bottom"]
+                                 :left [(- x gap) (+ y (/ h 2)) "right" "middle"]
+                                 :right [(+ x w gap) (+ y (/ h 2)) "left" "middle"]
+                                 [(+ x (/ w 2)) (+ y h gap) "center" "top"])]
+    (set! (.-font ctx) (str readout-size font))
+    (set! (.-fillStyle ctx) (:text-strong theme))
+    (set! (.-textAlign ctx) align)
+    (set! (.-textBaseline ctx) baseline)
+    (.fillText ctx (model/readout objects o) tx ty)))
+
+(defn- box! [^js ctx objects {:keys [x y w h kind] :as o} theme zoom]
+  (.save ctx)
+  (set! (.-strokeStyle ctx) (:sub theme))
+  (.beginPath ctx)
+  (.roundRect ctx x y w h frame-radius)
+  (.stroke ctx)
+  (when (not= :counter kind)
+    (ticks! ctx o theme)
+    (average! ctx objects o theme zoom))
+  (readout! ctx objects o theme)
+  (.restore ctx))
+
 (defn- object! [^js ctx objects o editing-id theme zoom]
   (set! (.-lineWidth ctx) 2)
   (set! (.-strokeStyle ctx) (:text-strong theme))
@@ -117,6 +200,16 @@
                   (when-not (= editing-id (:id o)) (text! ctx o (model/text-color objects o))))
       :text (when-not (= editing-id (:id o))
               (text! ctx o (or (model/text-color objects o) (:text-strong theme))))
+      :dot (let [fill (:fill o model/dot-fill)]
+             (set! (.-fillStyle ctx) fill)
+             (.beginPath ctx)
+             (.ellipse ctx (+ x (/ w 2)) (+ y (/ h 2)) (/ w 2) (/ h 2) 0 0 (* 2 js/Math.PI))
+             (.fill ctx)
+             (when (model/blends? fill (:bg theme))
+               (set! (.-strokeStyle ctx) (:panel-border theme))
+               (set! (.-lineWidth ctx) (/ 1 zoom))
+               (.stroke ctx)))
+      (:counter :scale-x :scale-xy) (box! ctx objects o theme zoom)
       :image (let [^js img (image (:src o))]
                (if (and (.-complete img) (pos? (.-naturalWidth img)))
                  (.drawImage ctx img x y w h)

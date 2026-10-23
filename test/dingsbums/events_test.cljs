@@ -61,7 +61,8 @@
   (is (= 800 (ev/wheel-px 1 2 800)) "pages"))
 
 (deftest tool-keys
-  (doseq [[k tool] {"v" :select "t" :text "f" :frame "n" :sticky "l" :connection}]
+  (doseq [[k tool] {"v" :select "t" :text "f" :frame "n" :sticky "l" :connection
+                    "d" :dot "c" :counter "x" :scale-x "y" :scale-xy}]
     (is (= [:tool/select tool] (ev/key-action {:key k})) k))
   (is (= [:tool/select :text] (ev/key-action {:key "T"})) "caps lock")
   (is (= [:tool/select :text] (ev/key-action {:key "T" :shift? true})) "with shift too: the tooltips show capitals")
@@ -82,7 +83,8 @@
   (is (= "Click or drag on the board to place a sticky note · N or Esc to cancel" (ev/tool-hint :sticky :rect)))
   (is (= "Click or drag on the board to place a star · S for the next shape, Esc to cancel" (ev/tool-hint :shape :star)))
   (is (= "Drag from one object to another to connect them · L or Esc to cancel" (ev/tool-hint :connection :rect)))
-  (doseq [t [:text :frame]] (is (string? (ev/tool-hint t :rect)) t)))
+  (is (= "Click or drag on the board to place a dot · D or Esc to cancel" (ev/tool-hint :dot :rect)))
+  (doseq [t [:text :frame :counter :scale-x :scale-xy]] (is (string? (ev/tool-hint t :rect)) t)))
 
 (deftest theme
   (let [fx (ev/theme-select board :nord)]
@@ -153,6 +155,11 @@
   (testing "shapes take the picked shape"
     (is (= :star (:shape (first (objects-of (drag (assoc board :tool :shape :shape-kind :star) [0 0] [0 0]))))))
     (is (= :circle (get-in (ev/select-shape board :circle) [:db :shape-kind]))))
+  (testing "dots and measuring boxes"
+    (is (= [{:kind :dot :x 288 :y 288 :w 24 :h 24 :fill "#e57373"}]
+           (map #(select-keys % [:kind :x :y :w :h :fill]) (objects-of (drag (assoc board :tool :dot) [300 300] [300 300])))))
+    (doseq [k [:counter :scale-x :scale-xy]]
+      (is (= [k] (map :kind (objects-of (drag (assoc board :tool k) [0 0] [0 0])))) k)))
   (testing "the tool at the press counts, not a key pressed mid-drag"
     (let [db (:db (ev/pointer-down (assoc board :tool :sticky) (pe 0 0)))
           fx (ev/pointer-up (:db (ev/select-tool db :select)) (pe 0 0 :t 100))]
@@ -290,6 +297,9 @@
     (is (every? :locked? (objects-of (ev/selection-lock db true))))
     (is (= "#e57373" (get-in (ev/selection-fill db "#e57373") [:db :objects "b" :fill])))
     (is (= "#64b5f6" (get-in (ev/selection-text-color db "#64b5f6") [:db :objects "a" :color])))
+    (let [box {:id "m" :kind :counter :x 0 :y 0 :w 100 :h 100 :z 1}
+          fx (ev/selection-side (assoc db :objects {"m" box} :selection #{"m"}) :top)]
+      (is (= [[:op/upsert [(assoc box :side :top)]]] (:tube/send fx)) "the side of a box"))
     (let [fx (ev/selection-layer (assoc db :selection #{"a"}) :front)]
       (is (= ["b" "a"] (mapv :id (geom/draw-order (get-in fx [:db :objects])))))
       (is (= [[:op/upsert [(assoc sticky :z 3)]]] (:tube/send fx)))

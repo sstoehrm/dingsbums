@@ -17,6 +17,14 @@
    :shape (icon [:path {:d "M12 3l9 9-9 9-9-9z"}])
    :sticky (icon [:path {:d "M4 4h16v10l-6 6H4z"}] [:path {:d "M14 20v-6h6"}])
    :connection (icon [:path {:d "M5 19L19 5"}] [:path {:d "M10 5h9v9"}])
+   :dot (icon [:circle {:cx 12 :cy 12 :r 4 :style {:fill "currentColor"}}])
+   :counter (icon [:rect {:x 4 :y 4 :width 16 :height 16 :rx 2}] [:path {:d "M10 8v8M14 8v8M8 10.5h8M8 13.5h8"}])
+   :scale-x (icon [:path {:d "M3 17h18"}] [:path {:d "M3 14v6M12 15v4M21 14v6"}] [:circle {:cx 15 :cy 9 :r 2}])
+   :scale-xy (icon [:path {:d "M5 3v16h16"}] [:circle {:cx 14 :cy 10 :r 2}])
+   :top (icon [:rect {:x 6 :y 9 :width 12 :height 11 :rx 1}] [:path {:d "M8 4h8"}])
+   :bottom (icon [:rect {:x 6 :y 4 :width 12 :height 11 :rx 1}] [:path {:d "M8 20h8"}])
+   :left (icon [:rect {:x 9 :y 6 :width 11 :height 12 :rx 1}] [:path {:d "M4 8v8"}])
+   :right (icon [:rect {:x 4 :y 6 :width 11 :height 12 :rx 1}] [:path {:d "M20 8v8"}])
    :undo (icon [:path {:d "M9 14L4 9l5-5"}] [:path {:d "M4 9h10a6 6 0 0 1 0 12h-3"}])
    :redo (icon [:path {:d "M15 14l5-5-5-5"}] [:path {:d "M20 9H10a6 6 0 0 0 0 12h3"}])
    :hand (icon [:path {:d "M8 13V6a1.5 1.5 0 0 1 3 0v5"}] [:path {:d "M11 11V4.5a1.5 1.5 0 0 1 3 0V11"}]
@@ -144,7 +152,10 @@
 
 (def ^:private tools
   [[:select "Select (V)"] [:text "Text (T)"] [:frame "Frame (F)"] [:shape "Shapes (S, again: next shape)"]
-   [:sticky "Sticky note (N)"] [:connection "Connection (L)"]])
+   [:sticky "Sticky note (N)"] [:connection "Connection (L)"] [:dot "Dot (D)"]
+   [:counter "Counting box (C): counts the dots in it"]
+   [:scale-x "Scale (X): the average x of the dots on it"]
+   [:scale-xy "Two-axis scale (Y): the average x and y of the dots on it"]])
 
 (defc toolbar [] [tool [:tool] shape [:shape-kind]]
   [:div.toolbar
@@ -180,6 +191,8 @@
   [[:front "Bring to front" "Home"] [:forward "Bring forward"] [:backward "Send backward"]
    [:back "Send to back" "End"]])
 
+(def ^:private sides [[:top "Number above"] [:bottom "Number below"] [:left "Number left"] [:right "Number right"]])
+
 (def ^:private mixed-fill "conic-gradient(#e57373, #fff176, #81c784, #64b5f6, #ba68c8, #e57373)")
 
 (defn- common-color
@@ -202,8 +215,10 @@
                             top (if pos (max 8 (- (second pos) 56)) 0)
                             colors (cond
                                      (and (seq os) (every? #(= :shape (:kind %)) os)) model/swatches
-                                     (and (seq os) (every? #(#{:shape :sticky} (:kind %)) os)) (rest model/swatches))
+                                     (and (seq os) (every? #(model/fill-kinds (:kind %)) os)) (rest model/swatches))
                             fills (set (map :fill os))
+                            boxes? (boolean (and (seq os) (every? #(geom/box-kinds (:kind %)) os)))
+                            box-sides (set (map #(:side % :bottom) os))
                             texts? (boolean (and (seq os) (every? #(model/text-kinds (:kind %)) os)))
                             text-colors (set (map :color os))
                             locked? (boolean (and (seq os) (every? :locked? os)))
@@ -231,6 +246,15 @@
                                           :style {:background-color (or c "transparent")}
                                           :on-click [:selection/text-color c]}
                           (when-not c "A")])])]
+   [:span.menu {:hidden (or (not boxes?) locked?)}
+    [:button.menu-button {:title "Where the number goes" :class (when (= menu :side) "active")
+                          :on-click [:selection/menu :side]}
+     (icons (if (= 1 (count box-sides)) (first box-sides) :bottom))]
+    (when (= menu :side)
+      [:div.sel-menu.column
+       (for [[k label] sides]
+         ^{:key k} [:button {:class (when (= #{k} box-sides) "active") :on-click [:selection/side k]}
+                    (icons k) [:span label]])])]
    [:span.menu {:hidden locked?}
     [:button {:title "Order" :class (when (= menu :layer) "active") :on-click [:selection/menu :layer]} "Order"]
     (when (= menu :layer)
