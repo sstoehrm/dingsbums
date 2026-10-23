@@ -1,12 +1,13 @@
 (ns dingsbums.log
   "Who changed which object and when: {id [{:at ms :by name :what action}]},
   oldest first. The server writes it as it applies ops, so names and times are
-  its own; clients only show it. Kept for deleted objects too, so an undo of a
-  delete reads as restored."
+  its own; clients only show it. Kept for the most recently deleted objects
+  too, so an undo of a delete reads as restored."
   (:refer-clojure :exclude [read])
   (:require [dingsbums.ops :as ops]))
 
 (def cap "Entries kept per object." 50)
+(def deleted-kept "Deleted objects whose entries are kept, the latest deleted: one undo history deep." 100)
 (def repeat-ms "A repeat of an object's last entry within this long is left out." 60000)
 
 (def actions #{:created :restored :edited :filled :coloured :locked :unlocked :grouped :ungrouped
@@ -45,6 +46,14 @@
                               ;; a fresh vector: a subvec keeps everything it was cut from
                               :else (conj (into [] (subvec es (- (count es) (dec cap)))) e)))))
           log entries))
+
+(defn prune
+  "log without the entries of deleted objects (not in objects) but the
+  deleted-kept most recently deleted, a deleted object's last entry being its
+  deletion."
+  [log objects]
+  (let [gone (->> (keys log) (remove #(contains? objects %)) (sort-by #(:at (peek (get log %))) >))]
+    (apply dissoc log (drop deleted-kept gone))))
 
 (defn- repeat? [log id {:keys [at by what]}]
   (let [l (peek (get log id))]

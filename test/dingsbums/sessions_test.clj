@@ -1,5 +1,6 @@
 (ns dingsbums.sessions-test
   (:require [clojure.test :refer [deftest is]]
+            [dingsbums.log :as log]
             [dingsbums.sessions :as s]))
 
 (def a {:id "a" :kind :sticky})
@@ -25,6 +26,18 @@
     (is (= {"x" [{:at 1 :by "Cy" :what :created}]}
            (get-in (s/replace-objects m "s1" {"x" a} {"x" [{:at 1 :by "Cy" :what :created}]}) ["s1" :log]))
         "an import brings its log")))
+
+(deftest deleted-objects-keep-a-bounded-log
+  (let [m (reduce (fn [m i] (-> m
+                                (s/apply-op "s1" [:op/upsert [(assoc a :id (str "d" i))]] "Ada" (* 10 i))
+                                (s/apply-op "s1" [:op/delete [(str "d" i)]] "Ada" (inc (* 10 i)))))
+                  (-> {} (s/create "s1" 0) (s/apply-op "s1" [:op/upsert [a]] "Ada" 0))
+                  (range (+ 5 log/deleted-kept)))
+        lg (get-in m ["s1" :log])]
+    (is (= (inc log/deleted-kept) (count lg)) "the live one and the most recently deleted")
+    (is (contains? lg "a"))
+    (is (not (contains? lg "d4")))
+    (is (contains? lg "d5"))))
 
 (deftest join-and-leave-track-idle-time
   (let [m (-> {} (s/create "s1" 100) (s/join "s1" :c1 "u1") (s/join "s1" :c2 "u2"))]

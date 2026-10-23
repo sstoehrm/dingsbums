@@ -48,6 +48,17 @@
     (is (= 59 (:at (peek (get lg "a")))))
     (is (instance? clojure.lang.PersistentVector (get lg "a")) "a fresh vector: a subvec would keep all of them")))
 
+(deftest prune-keeps-the-most-recently-deleted
+  (let [gone (fn [i] [(str "d" i) [{:at i :by "Ada" :what :created} {:at (+ i 1000) :by "Ada" :what :deleted}]])
+        lg (into {"a" [{:at 1 :by "Ada" :what :created}]} (map gone) (range (inc log/deleted-kept)))
+        pruned (log/prune lg {"a" a})]
+    (is (contains? pruned "a") "live objects keep theirs")
+    (is (= (inc log/deleted-kept) (count pruned)))
+    (is (not (contains? pruned "d0")) "the oldest deletion goes")
+    (is (contains? pruned (str "d" log/deleted-kept)))
+    (is (= [:created] (whats {} pruned [:op/upsert [(assoc a :id "d0")]])) "its undo reads as created")
+    (is (= [:restored] (whats {} pruned [:op/upsert [(assoc a :id "d1")]])))))
+
 (deftest read-keeps-only-valid-entries-of-objects
   (let [ok {:at 5 :by "Ada" :what :created}]
     (is (= {"a" [ok]}

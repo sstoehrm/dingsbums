@@ -23,12 +23,14 @@
   [m sid [op arg :as ev] by now]
   (when-exists m sid (fn [m]
                        (let [{:keys [objects log]} (get m sid)
-                             es (log/entries objects log ev by now)]
+                             es (log/entries objects log ev by now)
+                             objects ((case op :op/upsert ops/upsert :op/patch ops/patch :op/delete ops/delete)
+                                      objects arg)]
                          (update m sid assoc
-                                 :log (log/add log es)
+                                 ;; only a delete adds a deleted object's log
+                                 :log (cond-> (log/add log es) (= op :op/delete) (log/prune objects))
                                  :logged es
-                                 :objects ((case op :op/upsert ops/upsert :op/patch ops/patch :op/delete ops/delete)
-                                           objects arg))))))
+                                 :objects objects)))))
 
 (defn replace-objects
   "m with the session's board replaced, e.g. by an import, and its log with it."
