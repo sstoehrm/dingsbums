@@ -41,8 +41,11 @@
         "a minute later: again")
     (is (= ["Bo"] (mapv (comp :by second) (log/entries objs lg [:op/patch [{:id "a" :x 6}]] "Bo" 2000)))
         "someone else: again")
-    (is (= [:moved] (mapv (comp :what second) (log/entries objs lg [:op/patch [{:id "a" :x 6}]] "Ada" 500)))
-        "the last entry dated later (the clock stepped back): again")))
+    (testing "the last entry dated later (the clock stepped back)"
+      (let [es (log/entries (assoc-in objs ["a" :x] 5) lg [:op/patch [{:id "a" :x 6}]] "Ada" 500)]
+        (is (= [:moved] (mapv (comp :what second) es)) "again")
+        (is (= [] (log/entries (assoc-in objs ["a" :x] 6) (log/add lg es) [:op/patch [{:id "a" :x 7}]] "Ada" 800))
+            "and the rest of that drag is one entry")))))
 
 (deftest add-keeps-the-newest
   (let [lg (reduce (fn [lg i] (log/add lg [["a" {:at i :by "Ada" :what :moved}]])) {} (range 60))]
