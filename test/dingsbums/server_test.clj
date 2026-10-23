@@ -191,9 +191,16 @@
       (recv c3)
       (is (= [:log/all {"a" [["Ada" :created] ["Guest" :moved]]}]
              (let [[ev lg] (recv c3)] [ev (update-vals lg #(mapv (juxt :by :what) %))]))
-          "a newcomer gets the log after the snapshot"))
+          "a newcomer gets the log after the snapshot")
+      (send! c1 [:op/delete ["a"]])
+      (recv c2) (recv c2)
+      (let [c4 (connect sid :log)]
+        (send! c4 [:session/hello])
+        (recv c4)
+        (is (= [:created :moved :deleted] (mapv :what (get (second (recv c4)) "a")))
+            "deleted objects' logs too: an undo brings the object back with its history")))
     (let [res (req :get (str "/api/sessions/" sid "/export") {:as :bytes})]
-      (is (= [:created :moved] (mapv :what (get-in (tar/import-session (:body res)) [:log "a"]))) "exported with the board"))))
+      (is (= {} (:log (tar/import-session (:body res)))) "exported only for objects on the board"))))
 
 (deftest clients-and-idle-clock
   (let [sid (create!) c (connect sid)]

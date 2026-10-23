@@ -129,4 +129,4 @@
     (when-not (map? objects) (throw (ex-info "session.edn has no :objects map" {})))
     (let [objects (into {} (comp (map val) (filter ops/valid-object?) (map (fn [o] [(:id o) (inline-image o files)])))
                         objects)]
-      {:objects objects :log (log/read (:log data) objects)})))
+      {:objects objects :log (log/read (:log data) objects (System/currentTimeMillis))})))

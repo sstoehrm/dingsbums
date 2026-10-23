@@ -156,8 +156,8 @@ dingsbums has no accounts, analytics, cookies or connection logs. A board
 holds whatever its participants put on it, only in the server's memory, until
 the session ends (15 minutes after the last participant leaves). The name you
 give, your pointer position and your selection go to the server and to the
-others on the board while you are connected, and are dropped when you leave.
-The board also keeps, per element, who changed it and when (the name and the
+others on the board while you are connected, and are dropped when you leave,
+except your name in the history. The board keeps, per element, who changed it and when (the name and the
 time of each change); that history lasts as long as the board and goes into an
 export, so whoever gets an exported file sees those names and times too.
 Your browser keeps your name, theme and hand-mode choice in its local

@@ -59,7 +59,8 @@
       (= ev [:session/hello])
       (if-let [sess (get @s/sessions sid)]
         (do (http/send! ch (pr-str [:session/snapshot (:objects sess)]))
-            (http/send! ch (pr-str [:log/all (select-keys (:log sess) (keys (:objects sess)))]))
+            ;; deleted objects' too: an undo brings one back with its history
+            (http/send! ch (pr-str [:log/all (:log sess)]))
             (locking presence-lock
               (let [clients (get-in @s/sessions [sid :clients])]
                 (when-let [me (get clients ch)]

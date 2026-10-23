@@ -196,27 +196,39 @@
 
 (defn log-label [what] (log-labels what (name what)))
 
+(def ^:private together-ms
+  "Entries alike and this close are one change to several objects: a group is
+  sent as one op per object, each logged at its own time."
+  2000)
+
 (defn log-lines
   "The log of the objects ids, newest first, as [{:at :by :what :n}]: a change
   made to several of them at once (a group moved) is one line, :n of them."
   [lg ids]
-  (->> (mapcat #(get lg %) ids)
-       (group-by (juxt :at :by :what))
-       (map (fn [[[at by what] es]] {:at at :by by :what what :n (count es)}))
+  (->> (mapcat #(get lg %) (set ids))
        (sort-by :at >)
-       vec))
+       (reduce (fn [lines {:keys [at by what]}]
+                 (let [l (peek lines)]
+                   (if (and l (= by (:by l)) (= what (:what l)) (< (- (:last l) at) together-ms))
+                     (conj (pop lines) (assoc l :n (inc (:n l)) :last at))
+                     (conj lines {:at at :by by :what what :n 1 :last at}))))
+               [])
+       (mapv #(dissoc % :last))))
 
 (def ^:private months ["Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"])
 
 (defn format-time
-  "ms at in local time: HH:MM on the day of now, else with the day."
+  "ms at in local time: HH:MM on the day of now, else with the day (and the
+  year, if not now's)."
   [at now]
   (let [d (js/Date. at)
+        n (js/Date. now)
         two #(.padStart (str %) 2 "0")
         hm (str (two (.getHours d)) ":" (two (.getMinutes d)))]
-    (if (= (.toDateString d) (.toDateString (js/Date. now)))
-      hm
-      (str (.getDate d) " " (months (.getMonth d)) " " hm))))
+    (cond
+      (= (.toDateString d) (.toDateString n)) hm
+      (= (.getFullYear d) (.getFullYear n)) (str (.getDate d) " " (months (.getMonth d)) " " hm)
+      :else (str (.getDate d) " " (months (.getMonth d)) " " (.getFullYear d) " " hm))))
 
 (defn- with-presence
   "Handler f, telling the others when it changed my selection."

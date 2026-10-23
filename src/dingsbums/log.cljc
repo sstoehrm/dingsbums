@@ -34,10 +34,16 @@
       (changed? old new [:kind :shape :side :from :to :src]) (conj :changed))))
 
 (defn add
-  "log with entries [[id entry] ...] appended, the newest cap per object kept."
+  "log with entries [[id entry] ...] appended, the newest cap per object kept;
+  an entry equal to its object's last one is there already."
   [log entries]
   (reduce (fn [lg [id e]]
-            (update lg id (fn [es] (let [es (conj (or es []) e) n (count es)] (if (> n cap) (subvec es (- n cap)) es)))))
+            (update lg id (fn [es]
+                            (cond
+                              (= e (peek es)) es
+                              (< (count es) cap) (conj (or es []) e)
+                              ;; a fresh vector: a subvec keeps everything it was cut from
+                              :else (conj (into [] (subvec es (- (count es) (dec cap)))) e)))))
           log entries))
 
 (defn- repeat? [log id {:keys [at by what]}]
@@ -64,11 +70,12 @@
 
 (defn read
   "x (untrusted, e.g. from an import) as the log of objects: valid entries of
-  objects that are there; {} for anything else."
-  [x objects]
+  objects that are there, none after now; {} for anything else."
+  [x objects now]
   (if (map? x)
     (into {} (keep (fn [[id es]]
                      (when (and (contains? objects id) (sequential? es))
-                       (when-let [es (not-empty (filterv valid-entry? es))] (first (add {} (map #(vector id %) es)))))))
+                       (when-let [es (not-empty (filterv #(and (valid-entry? %) (<= (:at %) now)) es))]
+                         (first (add {} (map #(vector id %) es)))))))
           x)
     {}))

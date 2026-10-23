@@ -46,15 +46,17 @@
   (let [lg (reduce (fn [lg i] (log/add lg [["a" {:at i :by "Ada" :what :moved}]])) {} (range 60))]
     (is (= log/cap (count (get lg "a"))))
     (is (= 59 (:at (peek (get lg "a")))))
-    (is (vector? (get lg "a")))))
+    (is (instance? clojure.lang.PersistentVector (get lg "a")) "a fresh vector: a subvec would keep all of them")))
 
 (deftest read-keeps-only-valid-entries-of-objects
   (let [ok {:at 5 :by "Ada" :what :created}]
     (is (= {"a" [ok]}
            (log/read {"a" [ok {:at -1 :by "Ada" :what :created} {:at 5 :by "" :what :created}
+                           {:at 101 :by "Ada" :what :moved} {:at 9007199254740993 :by "Ada" :what :moved}
                            {:at 5 :by "Ada" :what :exploded} {:at 5 :by "Ada" :what :created :x 1} "junk"]
                       "gone" [ok]
                       "b" "junk"}
-                     objs)))
-    (is (= {} (log/read nil objs)) "an export from before the log")
-    (is (= {} (log/read [1 2] objs)))))
+                     objs 100))
+        "nothing from after now")
+    (is (= {} (log/read nil objs 100)) "an export from before the log")
+    (is (= {} (log/read [1 2] objs 100)))))
