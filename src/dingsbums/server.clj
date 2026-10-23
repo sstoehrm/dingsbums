@@ -38,57 +38,56 @@
       {:status 404 :body "not found"})))
 
 (defn- send-to!
-  "Sends msg to every client of sid except `except`."
+  "Sends msg to every greeted client of sid except `except`."
   [sid except msg]
-  (doseq [ch (keys (get-in @s/sessions [sid :clients])) :when (not= ch except)]
+  (doseq [ch (get-in @s/sessions [sid :greeted]) :when (not= ch except)]
     (http/send! ch msg)))
 
-(def ^:private no-lock (Object.))
-
-(defn- in-order
-  "(f) holding session sid's lock (a stand-in for an unknown sid). Held from
-  changing a session to sending what changed, and while a newcomer is sent
-  the board, log and roster: so it gets each change once, in those or after
-  them, and every client hears of changes in the order they happened."
-  [sid f]
-  (let [l (or (get-in @s/sessions [sid :lock]) no-lock)]
-    (locking l (f))))
+(defn- lock-of
+  "Session sid's lock, nil for an unknown sid. Held from changing a session to
+  sending what changed, and while a newcomer is greeted and sent the board, log
+  and roster: so it gets each change once, in those or after them, and every
+  client hears of changes in the order they happened."
+  [sid]
+  (get-in @s/sessions [sid :lock]))
 
 (defn- read-event [msg]
   (when (string? msg) (try (edn/read-string msg) (catch Exception _ nil))))
 
 (defn- receive! [sid ch msg]
-  (let [ev (read-event msg)]
+  (let [ev (read-event msg)
+        l (lock-of sid)]
     (cond
       ;; the board, then who is here (me included); the others hear of me
       (= ev [:session/hello])
-      (in-order sid
-        (fn []
-          (if-let [{:keys [objects log clients]} (get @s/sessions sid)]
-            (do (http/send! ch (pr-str [:session/snapshot objects]))
-                ;; deleted objects' too: an undo brings one back with its history
-                (http/send! ch (pr-str [:log/all log]))
-                (when-let [me (get clients ch)]
-                  (http/send! ch (pr-str [:presence/roster (:id me) (vec (vals clients))]))
-                  (send-to! sid ch (pr-str [:presence/update me]))))
-            (http/send! ch (pr-str [:session/missing])))))
+      (if l
+        (locking l
+          (let [{:keys [objects log clients]} (get (swap! s/sessions s/greet sid ch) sid)]
+            (http/send! ch (pr-str [:session/snapshot objects]))
+            ;; deleted objects' too: an undo brings one back with its history
+            (http/send! ch (pr-str [:log/all log]))
+            (when-let [me (get clients ch)]
+              (http/send! ch (pr-str [:presence/roster (:id me) (vec (vals clients))]))
+              (send-to! sid ch (pr-str [:presence/update me])))))
+        (http/send! ch (pr-str [:session/missing])))
+
+      ;; nothing to order, or to send, in an unknown session
+      (nil? l) nil
 
       ;; the others get what changed
       (and (vector? ev) (= 2 (count ev)) (= :presence/update (first ev)) (ops/presence? (second ev)))
-      (in-order sid
-        (fn []
-          (when-let [me (get-in (swap! s/sessions s/set-presence sid ch (second ev)) [sid :clients ch])]
-            (send-to! sid ch (pr-str [:presence/update (assoc (second ev) :id (:id me))])))))
+      (locking l
+        (when-let [me (get-in (swap! s/sessions s/set-presence sid ch (second ev)) [sid :clients ch])]
+          (send-to! sid ch (pr-str [:presence/update (assoc (second ev) :id (:id me))]))))
 
       ;; the op to the others, then what it did to everyone: the sender
       ;; learns the server's name and time for it too
       (ops/op? ev)
-      (in-order sid
-        (fn []
-          (let [by (or (get-in @s/sessions [sid :clients ch :name]) ops/default-name)
-                entries (get-in (swap! s/sessions s/apply-op sid ev by (now)) [sid :logged])]
-            (send-to! sid ch (pr-str ev))
-            (when (seq entries) (send-to! sid nil (pr-str [:log/add entries])))))))))
+      (locking l
+        (let [by (or (get-in @s/sessions [sid :clients ch :name]) ops/default-name)
+              entries (get-in (swap! s/sessions s/apply-op sid ev by (now)) [sid :logged])]
+          (send-to! sid ch (pr-str ev))
+          (when (seq entries) (send-to! sid nil (pr-str [:log/add entries]))))))))
 
 (defn- ws [req sid]
   (http/as-channel req
@@ -98,8 +97,8 @@
                   (http/close ch)))
      :on-receive (fn [ch msg] (receive! sid ch msg))
      :on-close (fn [ch _]
-                 (in-order sid
-                   (fn []
+                 (when-let [l (lock-of sid)]
+                   (locking l
                      (let [me (get-in @s/sessions [sid :clients ch])]
                        (swap! s/sessions s/leave sid ch (now))
                        (when me (send-to! sid nil (pr-str [:presence/left (:id me)])))))))}))
@@ -107,8 +106,8 @@
 (defn- import! [sid ^java.io.InputStream body]
   (if-let [{:keys [objects log]} (try (tar/import-session (if body (.readAllBytes body) (byte-array 0)))
                                      (catch Exception _ nil))]
-    (do (in-order sid
-          (fn []
+    (do (when-let [l (lock-of sid)]
+          (locking l
             (swap! s/sessions s/replace-objects sid objects log)
             (send-to! sid nil (pr-str [:session/snapshot objects]))
             (send-to! sid nil (pr-str [:log/all log]))))

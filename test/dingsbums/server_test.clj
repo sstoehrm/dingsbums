@@ -5,6 +5,8 @@
             [clojure.edn :as edn]
             [clojure.string :as str]
             [clojure.test :refer [deftest is use-fixtures]]
+            [dingsbums.log :as log]
+            [dingsbums.ops :as ops]
             [dingsbums.server :as server]
             [dingsbums.sessions :as s]
             [dingsbums.tar :as tar]
@@ -130,33 +132,45 @@
     (send! c [:op/upsert [a]])
     (is (= [:session/snapshot {"a" a}] (hello! c)))))
 
+(defn- blocked?
+  "Thread t is blocked on a lock within 2 seconds."
+  [^Thread t]
+  (loop [n 0]
+    (cond (= Thread$State/BLOCKED (.getState t)) true
+          (< n 200) (do (Thread/sleep 10) (recur (inc n)))
+          :else false)))
+
 (deftest an-op-during-hello-reaches-the-newcomer-once
   (let [sid (create!) c1 (connect sid) c2 (connect sid :log)
-        snapshot-due (promise) go-on (promise)
-        real-send! http/send!]
+        snapshot-due (promise) go-on (promise) op-thread (promise)
+        real-send! http/send! real-op? ops/op?]
     (hello! c1)
     (with-redefs [http/send! (fn [ch msg]
                                (when (str/starts-with? msg "[:session/snapshot")
                                  (deliver snapshot-due true) @go-on)
-                               (real-send! ch msg))]
+                               (real-send! ch msg))
+                  ops/op? (fn [ev] (deliver op-thread (Thread/currentThread)) (real-op? ev))]
       (send! c2 [:session/hello])
-      (deref snapshot-due 2000 nil)
+      (is (deref snapshot-due 2000 false))
       ;; c1's change while c2's snapshot is on its way
       (send! c1 [:op/upsert [a]])
-      (loop [n 0] (when (and (< n 30) (not (get-in @s/sessions [sid :objects "a"]))) (Thread/sleep 10) (recur (inc n))))
+      (is (blocked? (deref op-thread 2000 (Thread/currentThread))) "the op waits for the hello")
+      (is (nil? (get-in @s/sessions [sid :objects "a"])) "not applied before the snapshot is sent")
       (deliver go-on true)
-      ;; c2's board and history after all it got
-      (let [[objects lg] (loop [objects nil lg nil]
-                           (let [[ev x] (recv c2)]
-                             (case ev
-                               :session/snapshot (recur x lg)
-                               :log/all (recur objects x)
-                               :log/add (recur objects (reduce (fn [l [id e]] (update l id (fnil conj []) e)) lg x))
-                               :op/upsert (recur (merge objects (into {} (map (juxt :id identity)) x)) lg)
-                               (:presence/roster :presence/update) (recur objects lg)
-                               nil [objects lg])))]
-        (is (= {"a" a} objects) "a stale snapshot does not undo the change")
-        (is (= [:created] (mapv :what (get lg "a"))) "the change is in the history once")))))
+      (let [msgs (vec (repeatedly 5 #(recv c2)))
+            [objects lg] (reduce (fn [[objects lg] [ev x]]
+                                   (case ev
+                                     :session/snapshot [x lg]
+                                     :log/all [objects x]
+                                     :log/add [objects (log/add lg x)]
+                                     :op/upsert [(ops/upsert objects x) lg]
+                                     [objects lg]))
+                                 [{} {}] msgs)]
+        (is (= [:session/snapshot :log/all :presence/roster :op/upsert :log/add] (mapv first msgs))
+            "nothing before the hello is answered, the change once after it")
+        (is (quiet? c2))
+        (is (= {"a" a} objects) "the newcomer's board has the change")
+        (is (= [:created] (mapv :what (get lg "a"))) "and its history, once")))))
 
 (deftest unknown-session-is-told-and-closed
   (let [c (connect "nope")]
