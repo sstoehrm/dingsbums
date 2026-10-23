@@ -193,3 +193,18 @@
     (testing "locked objects are not moved"
       (is (= {} (m/layer-changes (assoc-in os ["p" :locked?] true) #{"p"} :front)))
       (is (= ["f" "g" "pq" "q" "r" "s" "p"] (order (assoc-in os ["q" :locked?] true) #{"p" "q"} :front))))))
+
+(deftest dots-and-measuring-boxes
+  (let [dot (assoc (m/make {} :dot {:x 0 :y 0 :w 24 :h 24} nil) :id "d")
+        box {:id "m" :kind :counter :x 0 :y 0 :w 100 :h 100 :z 1}
+        os {"d" dot "m" box "a" a}]
+    (is (= m/dot-fill (:fill dot)))
+    (is (= {"d" (assoc dot :fill "#64b5f6")} (m/fill-changes os #{"d" "m"} "#64b5f6")) "dots take a fill, boxes don't")
+    (is (= {} (m/fill-changes os #{"d"} nil)) "a dot keeps a fill")
+    (is (= {"m" (assoc box :side :left)} (m/side-changes os #{"m" "a" "d"} :left)) "only boxes have a side")
+    (is (= {} (m/side-changes (assoc-in os ["m" :locked?] true) #{"m"} :left)) "locked")
+    (is (= "1" (m/readout box [dot])) "a counter counts its dots")
+    (is (= "0" (m/readout box [])))
+    (is (= "Ø 1.2" (m/readout (assoc box :kind :scale-x) [dot])) "the average on 0–10")
+    (is (= "Ø 1.2 · 8.8" (m/readout (assoc box :kind :scale-xy) [dot])) "y counts up from the bottom")
+    (is (= "Ø –" (m/readout (assoc box :kind :scale-x) [])) "no dots: no average")))

@@ -7,8 +7,13 @@
             [dingsbums.geom :as geom]
             [dingsbums.ops :as ops]))
 
-(def default-size {:text [200 50] :frame [400 300] :shape [120 120] :sticky [200 200]})
+(def default-size {:text [200 50] :frame [400 300] :shape [120 120] :sticky [200 200]
+                   :dot [24 24] :counter [300 200] :scale-x [500 160] :scale-xy [400 400]})
 (def sticky-fill "#fff176")
+(def dot-fill "#e57373")
+(def scale-max
+  "A scale runs from 0 to this, on each axis."
+  10)
 (def shape-kinds [:circle :rect :star :arrow])
 (def swatches [nil "#fff176" "#ffb74d" "#e57373" "#81c784" "#64b5f6" "#ba68c8" "#ffffff" "#000000"])
 (def text-colors [nil "#000000" "#ffffff" "#e57373" "#ffb74d" "#81c784" "#64b5f6" "#ba68c8"])
@@ -41,7 +46,7 @@
   [objects kind rect extra]
   (merge {:id (new-id) :kind kind :z (next-z objects)}
          (select-keys rect [:x :y :w :h])
-         (case kind :sticky {:fill sticky-fill :text ""} :text {:text ""} {})
+         (case kind :sticky {:fill sticky-fill :text ""} :text {:text ""} :dot {:fill dot-fill} {})
          extra))
 
 (defn expand-groups
@@ -102,12 +107,32 @@
                            [(:id o) (if color (assoc o :color color) (dissoc o :color))])))
         (unlocked objects ids)))
 
+(def fill-kinds #{:shape :sticky :dot})
+
 (defn fill-changes
-  "Sets the fill of unlocked shapes and stickies; nil (no fill) only for shapes."
+  "Sets the fill of unlocked shapes, stickies and dots; nil (no fill) only for shapes."
   [objects ids color]
-  (into {} (keep (fn [o] (when (and (#{:shape :sticky} (:kind o)) (or color (= :shape (:kind o))))
+  (into {} (keep (fn [o] (when (and (fill-kinds (:kind o)) (or color (= :shape (:kind o))))
                            [(:id o) (assoc o :fill color)])))
         (unlocked objects ids)))
+
+(defn side-changes
+  "Sets the side unlocked measuring boxes show their readout on."
+  [objects ids side]
+  (into {} (keep (fn [o] (when (geom/box-kinds (:kind o)) [(:id o) (assoc o :side side)])))
+        (unlocked objects ids)))
+
+(defn readout
+  "What measuring box shows for the dots in it (geom/dots-in): a counter how
+  many, a scale their average position on 0–scale-max (x, or x · y with y
+  counting up)."
+  [box dots]
+  (if (= :counter (:kind box))
+    (str (count dots))
+    (if-let [[ax ay] (geom/average box dots)]
+      (str "Ø " (.toFixed (* scale-max ax) 1)
+           (when (= :scale-xy (:kind box)) (str " · " (.toFixed (* scale-max ay) 1))))
+      "Ø –")))
 
 (defn- step-up
   "v with each selected object one place up, past the unselected one above it."
