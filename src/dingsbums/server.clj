@@ -4,7 +4,6 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [dingsbums.log :as log]
             [dingsbums.ops :as ops]
             [dingsbums.sessions :as s]
             [dingsbums.tar :as tar]
@@ -77,10 +76,8 @@
       ;; the op to the others, then what it did to everyone: the sender
       ;; learns the server's name and time for it too
       (ops/op? ev)
-      (let [by (or (get-in @s/sessions [sid :clients ch :name]) "Guest")
-            t (now)
-            [old _] (swap-vals! s/sessions s/apply-op sid ev by t)
-            entries (when-let [{:keys [objects log]} (get old sid)] (log/entries objects log ev by t))]
+      (let [by (or (get-in @s/sessions [sid :clients ch :name]) ops/default-name)
+            entries (get-in (swap! s/sessions s/apply-op sid ev by (now)) [sid :logged])]
         (send-to! sid ch (pr-str ev))
         (when (seq entries) (send-to! sid nil (pr-str [:log/add entries])))))))
 

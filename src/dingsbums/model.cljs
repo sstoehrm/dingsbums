@@ -9,6 +9,13 @@
 
 (def default-size {:text [200 50] :frame [400 300] :shape [120 120] :sticky [200 200]
                    :dot [24 24] :counter [300 200] :scale-x [500 160] :scale-xy [400 400]})
+(def fixed-size-kinds "Kinds that keep their default size: dots in a vote stay alike." #{:dot})
+
+(defn resizable?
+  "o has resize handles: unlocked, neither a connection nor of a fixed size."
+  [o]
+  (boolean (and o (not (:locked? o)) (not= :connection (:kind o)) (not (fixed-size-kinds (:kind o))))))
+
 (def sticky-fill "#fff176")
 (def dot-fill "#e57373")
 (def scale-max

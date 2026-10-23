@@ -34,7 +34,8 @@
 
 (reg-fx :tube/send (fn [evs] (run! tubes/send! evs)))
 (reg-fx :set-hash (fn [h] (set! (.-hash js/location) h)))
-(reg-fx :cursor/flush-later (fn [ms] (js/setTimeout #(dispatch [:cursor/flush]) ms)))
+;; the time on the clock pointer events' timeStamp uses
+(reg-fx :cursor/flush-later (fn [ms] (js/setTimeout #(dispatch [:cursor/flush (js/performance.now)]) ms)))
 (reg-fx :clipboard/write (fn [s] (some-> js/navigator .-clipboard (.writeText s) (.catch (fn [_] nil)))))
 
 (def theme-storage-key "dingsbums-theme")
@@ -225,10 +226,11 @@
         n (js/Date. now)
         two #(.padStart (str %) 2 "0")
         hm (str (two (.getHours d)) ":" (two (.getMinutes d)))]
-    (cond
-      (= (.toDateString d) (.toDateString n)) hm
-      (= (.getFullYear d) (.getFullYear n)) (str (.getDate d) " " (months (.getMonth d)) " " hm)
-      :else (str (.getDate d) " " (months (.getMonth d)) " " (.getFullYear d) " " hm))))
+    (if (= (.toDateString d) (.toDateString n))
+      hm
+      (str (.getDate d) " " (months (.getMonth d))
+           (when (not= (.getFullYear d) (.getFullYear n)) (str " " (.getFullYear d)))
+           " " hm))))
 
 (defn- with-presence
   "Handler f, telling the others when it changed my selection."
@@ -248,7 +250,7 @@
   "s as a name: control characters as spaces, trimmed, at most 32 characters;
   nil when blank."
   [s]
-  (let [n (str/trim (str/replace (str s) #"[\x00-\x1f\x7f]" " "))]
+  (let [n (str/trim (str/replace (str s) ops/name-control-chars " "))]
     (when-not (str/blank? n) (subs n 0 (min (count n) ops/max-name-length)))))
 
 (defn name-edit [db] {:db (assoc db :naming (or (:name db) ""))})
@@ -269,21 +271,27 @@
   [db tool]
   {:db (assoc db :tool (if (= tool (:tool db)) :select tool))})
 
+(def tool-keys
+  "The key that picks each tool, as the toolbar shows it."
+  {:select "V" :text "T" :frame "F" :shape "S" :sticky "N" :connection "L"
+   :dot "D" :counter "C" :scale-x "X" :scale-xy "Y"})
+
 (defn tool-hint
   "What to do with the active tool, nil for Select."
   [tool shape-kind]
-  (let [place (fn [what k] (str "Click or drag on the board to place " what " · " k " or Esc to cancel"))]
+  (let [k (tool-keys tool)
+        place (fn [what] (str "Click or drag on the board to place " what " · " k " or Esc to cancel"))]
     (case tool
-      :text (place "a text" "T")
-      :frame (place "a frame" "F")
-      :sticky (place "a sticky note" "N")
-      :dot (place "a dot" "D")
-      :counter (place "a box that counts the dots in it" "C")
-      :scale-x (place "a scale that averages its dots' x" "X")
-      :scale-xy (place "a scale that averages its dots' x and y" "Y")
+      :text (place "a text")
+      :frame (place "a frame")
+      :sticky (place "a sticky note")
+      :dot (place "a dot")
+      :counter (place "a box that counts the dots in it")
+      :scale-x (place "a scale that averages its dots' x")
+      :scale-xy (place "a scale that averages its dots' x and y")
       :shape (str "Click or drag on the board to place a " ({:rect "rectangle"} shape-kind (name shape-kind))
-                  " · S for the next shape, Esc to cancel")
-      :connection "Drag from one object to another to connect them · L or Esc to cancel"
+                  " · " k " for the next shape, Esc to cancel")
+      :connection (str "Drag from one object to another to connect them · " k " or Esc to cancel")
       nil)))
 (defn select-shape [db shape] {:db (assoc db :tool :shape :shape-kind shape)})
 (defn shapes-key
@@ -344,11 +352,11 @@
     [db []]))
 
 (defn- resize-target
-  "[obj corner] when p is on a handle of the single selected, unlocked, non-connection object."
+  "[obj corner] when p is on a handle of the single selected object, if resizable."
   [db p]
   (let [sel (:selection db)
         o (when (= 1 (count sel)) (get-in db [:objects (first sel)]))]
-    (when (and o (not (:locked? o)) (not= :connection (:kind o)))
+    (when (model/resizable? o)
       (when-let [k (geom/handle-at o p (tol db geom/handle-px))] [o k]))))
 
 (defn- press [db {:keys [sx sy button shift? ctrl? t]} p]
@@ -425,10 +433,10 @@
               (nil? (:cursor-pending db)) (assoc :cursor/flush-later send-interval)))))
 
 (defn cursor-flush
-  "Sends the pointer position the throttle held back, if any."
-  [db]
+  "Sends the pointer position the throttle held back, if any, at t."
+  [db t]
   (when-let [p (:cursor-pending db)]
-    (presence-send {:db (assoc db :cursor-pending nil)} {:cursor p})))
+    (presence-send {:db (assoc db :cursor-sent t :cursor-pending nil)} {:cursor p})))
 
 (defn pointer-move [db {:keys [t] :as e}]
   (let [p (world db e)] (send-cursor (drag-move db e p) db p t)))
@@ -438,8 +446,8 @@
 (defn- create-object [db {:keys [kind start]} end]
   (let [r (geom/rect-from-points start end)
         [dw dh] (model/default-size kind)
-        ;; a dot is always placed like a click: dots in a vote stay alike
-        rect (if (or (= kind :dot) (and (< (:w r) 5) (< (:h r) 5)))
+        ;; a fixed-size kind (a dot) is always placed like a click
+        rect (if (or (model/fixed-size-kinds kind) (and (< (:w r) 5) (< (:h r) 5)))
                {:x (- (first start) (/ dw 2)) :y (- (second start) (/ dh 2)) :w dw :h dh}
                (-> r (update :w max geom/min-size) (update :h max geom/min-size)))
         o (model/make (:objects db) kind rect (when (= kind :shape) {:shape (:shape-kind db)}))]
@@ -668,6 +676,8 @@
 
 (def ^:private arrows {"ArrowLeft" [-1 0] "ArrowRight" [1 0] "ArrowUp" [0 -1] "ArrowDown" [0 1]})
 
+(def ^:private key-tools (into {} (map (fn [[t k]] [(str/lower-case k) t])) (dissoc tool-keys :shape)))
+
 (defn key-action
   "The event for a key press outside text inputs, or nil to leave it to the browser."
   [{:keys [key ctrl? shift? alt? repeat?]}]
@@ -687,11 +697,9 @@
       (or alt? repeat?) nil
       (= key "Home") [:selection/layer :front]
       (= key "End") [:selection/layer :back]
-      (= k "s") [:tool/shapes]
+      (= k (str/lower-case (tool-keys :shape))) [:tool/shapes]
       (= k "h") [:hand/toggle]
-      :else (when-let [tool ({"v" :select "t" :text "f" :frame "n" :sticky "l" :connection
-                              "d" :dot "c" :counter "x" :scale-x "y" :scale-xy} k)]
-              [:tool/select tool]))))
+      :else (when-let [tool (key-tools k)] [:tool/select tool]))))
 
 (doseq [[id f] {:route/changed route-changed
                 :session/exists session-exists

@@ -27,7 +27,7 @@
                     (map (fn [p] [(str "images/" (fs/file-name p)) (fs/read-all-bytes p)]))
                     images)
       bytes (tar/write-tar entries)
-      kept (tar/import-session bytes)
+      kept (:objects (tar/import-session bytes))
       problems (concat
                 (for [o objs :when (not (ops/valid-object? o))]
                   (str "dropped, not a valid object: " (pr-str o)))

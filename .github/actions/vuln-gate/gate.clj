@@ -93,9 +93,10 @@
            :kev (boolean (some kev cves))
            :epss (when (seq scores) (apply max scores)))))
 
-(defn- gating? [f]
-  (boolean (or (:kev f)
-               (and (:epss f) (>= (:epss f) epss-threshold) (high? f)))))
+(defn- likely-and-severe? [f]
+  (boolean (and (:epss f) (>= (:epss f) epss-threshold) (high? f))))
+
+(defn- gating? [f] (boolean (or (:kev f) (likely-and-severe? f))))
 
 (defn classify
   "Splits findings into :blocking, :suppressed (by an unexpired allowlist entry)
@@ -149,17 +150,19 @@
       {:entries [] :errors ["top level must be a map with an `ignore:` list"]}
       :else
       (reduce (fn [acc [i e]]
-                (let [label (str "entry " (inc i) (when (map? e) (str " (" (:id e) ")")))
-                      id (when (map? e) (some-> (:id e) str str/trim))
-                      expires (when (map? e) (->date (get raw i)))
-                      errors (cond-> []
-                               (not (map? e)) (conj "must be a map")
-                               (and (map? e) (str/blank? id)) (conj "id is required")
-                               (and (map? e) (blank-str? (:reason e))) (conj "reason is required")
-                               (and (map? e) (nil? expires)) (conj "expires must be a date (YYYY-MM-DD)"))]
+                (let [m (when (map? e) e)
+                      label (str "entry " (inc i) (when m (str " (" (:id m) ")")))
+                      id (some-> (:id m) str str/trim)
+                      expires (when m (->date (get raw i)))
+                      errors (if-not m
+                               ["must be a map"]
+                               (cond-> []
+                                 (str/blank? id) (conj "id is required")
+                                 (blank-str? (:reason m)) (conj "reason is required")
+                                 (nil? expires) (conj "expires must be a date (YYYY-MM-DD)")))]
                   (if (seq errors)
                     (update acc :errors conj (str label ": " (str/join ", " errors)))
-                    (update acc :entries conj {:id id :reason (str/trim (:reason e)) :expires expires}))))
+                    (update acc :entries conj {:id id :reason (str/trim (:reason m)) :expires expires}))))
               {:entries [] :errors []}
               (map-indexed vector items)))))
 
@@ -200,7 +203,7 @@
 (defn- why [f]
   (str/join ", " (cond-> []
                    (:kev f) (conj "KEV")
-                   (and (:epss f) (>= (:epss f) epss-threshold) (high? f)) (conj "EPSS+CVSS"))))
+                   (likely-and-severe? f) (conj "EPSS+CVSS"))))
 
 (defn- cvss-str [f] (if (:cvss f) (format "%.1f" (:cvss f)) (str "– (" (:severity f) ")")))
 (defn- epss-str [f] (if (:epss f) (format "%.3f" (:epss f)) "–"))
@@ -214,6 +217,9 @@
 (defn- finding-row [f]
   [(:id f) (:pkg f) (:version f) (or (:fixed f) "–") (cvss-str f) (epss-str f) (if (:kev f) "yes" "")])
 
+(defn- section [title header rows]
+  (when (seq rows) (str "### " title " (" (count rows) ")\n\n" (table header rows) "\n")))
+
 (def report-rows-max 300)
 
 (defn summary [{:keys [blocking suppressed report expired unused]} {:keys [kev-version]}]
@@ -221,19 +227,11 @@
     (str "## Vulnerability gate: " (if (seq blocking) "❌ failed" "✅ passed") "\n\n"
          "Fails on findings in CISA KEV, or with EPSS ≥ " epss-threshold " and CVSS ≥ " cvss-threshold
          ". KEV catalog " kev-version ".\n\n"
-         (when (seq blocking)
-           (str "### Blocking (" (count blocking) ")\n\n"
-                (table (conj cols "Why") (map #(conj (finding-row %) (why %)) blocking)) "\n"))
-         (when (seq expired)
-           (str "### Expired allowlist entries (" (count expired) ")\n\n"
-                (table ["ID" "Expired after" "Reason"] (map (juxt :id :expires :reason) expired)) "\n"))
-         (when (seq suppressed)
-           (str "### Suppressed (" (count suppressed) ")\n\n"
-                (table (conj cols "Expires" "Reason")
-                       (map #(conj (finding-row %) (-> % :allow :expires) (-> % :allow :reason)) suppressed)) "\n"))
-         (when (seq unused)
-           (str "### Unused allowlist entries (" (count unused) ")\n\n"
-                (table ["ID" "Expires" "Reason"] (map (juxt :id :expires :reason) unused)) "\n"))
+         (section "Blocking" (conj cols "Why") (map #(conj (finding-row %) (why %)) blocking))
+         (section "Expired allowlist entries" ["ID" "Expired after" "Reason"] (map (juxt :id :expires :reason) expired))
+         (section "Suppressed" (conj cols "Expires" "Reason")
+                  (map #(conj (finding-row %) (-> % :allow :expires) (-> % :allow :reason)) suppressed))
+         (section "Unused allowlist entries" ["ID" "Expires" "Reason"] (map (juxt :id :expires :reason) unused))
          "### Report only (" (count report) ")\n\n"
          (if (seq report)
            (str (table cols (map finding-row (take report-rows-max report)))

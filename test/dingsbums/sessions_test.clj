@@ -8,16 +8,18 @@
 (deftest create-and-object-ops
   (let [m (s/create {} "s1" 100)]
     (is (= {:objects {} :log {} :clients {} :empty-since 100} (get m "s1")))
-    (is (= {"a" a "ab" ab} (get-in (s/upsert m "s1" [a ab]) ["s1" :objects])))
-    (is (= {} (get-in (-> m (s/upsert "s1" [a ab]) (s/delete "s1" ["a"])) ["s1" :objects])))
+    (is (= {"a" a "ab" ab} (get-in (s/apply-op m "s1" [:op/upsert [a ab]] "Ada" 10) ["s1" :objects])))
+    (is (= {} (get-in (-> m (s/apply-op "s1" [:op/upsert [a ab]] "Ada" 10) (s/apply-op "s1" [:op/delete ["a"]] "Ada" 20))
+                      ["s1" :objects])))
     (is (= {"x" a} (get-in (s/replace-objects m "s1" {"x" a}) ["s1" :objects])))
-    (is (= m (s/upsert m "nope" [a])) "unknown session: no-op, nothing created")
+    (is (= m (s/apply-op m "nope" [:op/upsert [a]] "Ada" 10)) "unknown session: no-op, nothing created")
     (is (= m (s/join m "nope" :ch "u")))))
 
 (deftest ops-are-applied-and-logged
   (let [m (-> {} (s/create "s1" 0) (s/apply-op "s1" [:op/upsert [a]] "Ada" 10) (s/apply-op "s1" [:op/delete ["a"]] "Bo" 20))]
     (is (= {} (get-in m ["s1" :objects])))
     (is (= [{:at 10 :by "Ada" :what :created} {:at 20 :by "Bo" :what :deleted}] (get-in m ["s1" :log "a"])))
+    (is (= [["a" {:at 20 :by "Bo" :what :deleted}]] (get-in m ["s1" :logged])) "what the last op logged")
     (is (= m (s/apply-op m "nope" [:op/upsert [a]] "Ada" 30)))
     (is (= {"x" a} (get-in (s/replace-objects m "s1" {"x" a} {"x" [{:at 1 :by "Cy" :what :created}]}) ["s1" :objects])))
     (is (= {"x" [{:at 1 :by "Cy" :what :created}]}
