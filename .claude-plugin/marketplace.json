@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "dingsbums",
+  "description": "Claude Code skills for dingsbums, the collaboration whiteboard",
+  "owner": {
+    "name": "Sören Stöhrmann",
+    "url": "https://github.com/sstoehrm"
+  },
+  "plugins": [
+    {
+      "name": "dingsbums",
+      "source": "./plugins/dingsbums",
+      "description": "Prepares dingsbums boards (retros, dot votes, workshops, diagrams) as a .tar to load with Import"
+    }
+  ]
+}

@@ -140,12 +140,17 @@
                 (println (str "created " out "/ (bb " bb-version "); on the server: sudo ./install.sh [port]")))}
 
   release {:doc "Tag a release from a clean main that matches origin: bb release vX.Y.Z (the tag's workflow publishes the jar)"
-           :requires ([clojure.string :as str])
+           :requires ([cheshire.core :as json] [clojure.string :as str])
            :task (let [tag (first *command-line-args*)
                        git (fn [& args] (str/trim (:out (apply shell {:out :string} "git" args))))
-                       die (fn [& msg] (binding [*out* *err*] (println (apply str "release: " msg))) (System/exit 1))]
+                       die (fn [& msg] (binding [*out* *err*] (println (apply str "release: " msg))) (System/exit 1))
+                       plugin "plugins/dingsbums/.claude-plugin/plugin.json"]
                    (when-not (re-matches (re-pattern "v(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)") (str tag))
                      (die "usage: bb release vX.Y.Z"))
+                   ;; the Claude Code plugin is released with the app, at its version
+                   (let [v (:version (json/parse-string (slurp plugin) true))]
+                     (when-not (= (subs tag 1) v)
+                       (die plugin " is at version " v "; set it to " (subs tag 1) " (in a PR) before releasing " tag)))
                    (when-not (= "main" (git "rev-parse" "--abbrev-ref" "HEAD")) (die "not on main"))
                    (when (seq (git "status" "--porcelain")) (die "the working tree is not clean"))
                    (git "fetch" "--quiet" "--tags" "origin")

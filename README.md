@@ -14,6 +14,8 @@
   &nbsp;·&nbsp;
   <a href="#installation">Installation</a>
   &nbsp;·&nbsp;
+  <a href="#boards-from-claude-code">Boards from Claude Code</a>
+  &nbsp;·&nbsp;
   <a href="#development">Development</a>
   &nbsp;·&nbsp;
   <a href="docs/superpowers/specs/2026-10-06-whiteboard-design.md">Design</a>
@@ -68,7 +70,8 @@ can't think of right now. That's what a whiteboard is full of.
   shape), N sticky note, L connection, D dot, C counting box, X scale, Y
   two-axis scale. Picking the active tool again, by key
   or button, goes back to Select; a hint at the bottom says what to do.
-- Export a board as a `.tar` and import it again.
+- Export a board as a `.tar` and import it again, or have Claude Code
+  prepare one: see [Boards from Claude Code](#boards-from-claude-code).
 - A quiet parchment look by default, twelve more colour themes, or follow
   the OS light/dark setting. Themes only change the colours.
 
@@ -123,6 +126,36 @@ Behind Caddy under `/dingsbums/`:
 The `redir` matters: without the trailing slash the page's relative URLs
 miss the prefix.
 
+## Boards from Claude Code
+
+This repo is a [Claude Code](https://claude.com/claude-code) plugin
+marketplace. Its `dingsbums` plugin has a
+[board skill](plugins/dingsbums/skills/board/SKILL.md) that prepares a
+board for you: ask for "a retro for six people with a dot vote" or "an
+effort × impact workshop", and it writes a `.tar` you load with **Import**.
+Import replaces what is on the board, so use a fresh session.
+
+Install it in Claude Code:
+
+    /plugin install dingsbums --marketplace sstoehrm/dingsbums
+
+Before Claude Code 2.1.275, in two steps:
+
+    /plugin marketplace add sstoehrm/dingsbums
+    /plugin install dingsbums@dingsbums
+
+Or from a shell: `claude plugin marketplace add sstoehrm/dingsbums --sparse
+.claude-plugin plugins` (the sparse checkout skips the app) and `claude
+plugin install dingsbums@dingsbums`. The plugin's version is the dingsbums
+release it comes with; `/plugin update dingsbums` gets the next one.
+
+Packing a board needs babashka and the dingsbums jar, which
+[install.sh](#installation) puts in `~/.dingsbums/dingsbums.jar` (any
+`dingsbums.jar` from the [releases](https://github.com/sstoehrm/dingsbums/releases)
+works too; in a checkout the skill uses `src/`). Dots, counting boxes and
+scales need a release newer than v0.3.0, for packing and on the server you
+import into.
+
 ## Development
 
 Needs babashka, Node.js with npm, and a JDK 25 or newer (for the frontend
@@ -150,7 +183,9 @@ every push to main and daily, see
 
 Releasing: `bb release vX.Y.Z` on a clean main that matches origin tags and
 pushes; the tag's workflow tests, builds `dingsbums.jar` and publishes the
-GitHub release.
+GitHub release. The Claude Code plugin is released with it: set
+`plugins/dingsbums/.claude-plugin/plugin.json`'s version to X.Y.Z in a PR
+first (the task refuses otherwise), so `/plugin update` offers it.
 
 ## Privacy
 
