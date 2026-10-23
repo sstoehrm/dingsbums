@@ -158,15 +158,20 @@
   [:div.people
    [:button.person {:title "Change your name" :on-click [:name/edit]}
     [:span.dot {:style {:background (board/user-color (:color you))}}]
-    (or my-name "Guest") [:span.you "(you)"]]
+    (board/user-name {:name my-name}) [:span.you "(you)"]]
    (for [user (sort-by (juxt :color :id) (vals peers))]
      ^{:key (:id user)} [:span.person [:span.dot {:style {:background (board/user-color (:color user))}}]
                          (board/user-name user)])])
 
-(defn- name-keydown [^js e]
-  (when (= "Escape" (.-key e))
-    (.preventDefault e)
-    (dispatch [:name/cancel])))
+(defn- on-escape
+  "A keydown handler that dispatches ev on Escape."
+  [ev]
+  (fn [^js e]
+    (when (= "Escape" (.-key e))
+      (.preventDefault e)
+      (dispatch ev))))
+
+(def ^:private name-keydown (on-escape [:name/cancel]))
 
 ;; asked once, then kept in this browser
 (defc name-dialog [] [my-name [:name] naming [:naming] draft (or naming "")]
@@ -182,11 +187,14 @@
      [:button.primary {:type "submit" :disabled (nil? (events/clean-name draft))} "Save"]]]])
 
 (def ^:private tools
-  [[:select "Select (V)" "V"] [:text "Text (T)" "T"] [:frame "Frame (F)" "F"] [:shape "Shapes (S, again: next shape)" "S"]
-   [:sticky "Sticky note (N)" "N"] [:connection "Connection (L)" "L"] [:dot "Dot (D)" "D"]
-   [:counter "Counting box (C): counts the dots in it" "C"]
-   [:scale-x "Scale (X): the average x of the dots on it" "X"]
-   [:scale-xy "Two-axis scale (Y): the average x and y of the dots on it" "Y"]])
+  "Each tool's label, its key (events/tool-keys) shown after it in brackets."
+  (for [[k label more] [[:select "Select"] [:text "Text"] [:frame "Frame"] [:shape "Shapes" ", again: next shape)"]
+                        [:sticky "Sticky note"] [:connection "Connection"] [:dot "Dot"]
+                        [:counter "Counting box" "): counts the dots in it"]
+                        [:scale-x "Scale" "): the average x of the dots on it"]
+                        [:scale-xy "Two-axis scale" "): the average x and y of the dots on it"]]
+        :let [key (events/tool-keys k)]]
+    [k (str label " (" key (or more ")")) key]))
 
 (defc toolbar [] [tool [:tool] shape [:shape-kind]]
   [:div.toolbar
@@ -234,8 +242,19 @@
 ;; a menu needs about this much room above the toolbar, else it opens below
 (def ^:private menu-room 170)
 
+;; its own component, so only an open History follows the log
+(defc history [] [lg [:log] sel [:selection] lines (events/log-lines lg sel)]
+  (let [now (js/Date.now)]
+    [:ol.sel-menu.column.log {:aria-label "History"}
+     (if (empty? lines)
+       [:li.empty "No changes recorded"]
+       (for [{:keys [at by what n]} lines]
+         ^{:key (str at by what)}
+         [:li [:span.by by] [:span (events/log-label what) (when (> n 1) (str " (" n ")"))]
+          [:time {:dateTime (.toISOString (js/Date. at))} (events/format-time at now)]]))]))
+
 (defc selection-toolbar [] [sel [:selection] objects [:objects] cam [:camera] drag [:drag] editing [:editing]
-                            sel-menu [:sel-menu] viewport [:viewport] lg [:log]
+                            sel-menu [:sel-menu] viewport [:viewport]
                             vw (first viewport)
                             menu (events/open-menu sel-menu sel)
                             os (vec (keep #(get objects %) sel))
@@ -308,21 +327,10 @@
    [:span.menu
     [:button {:title "Who changed this, and when" :class (when (= menu :log) "active") :on-click [:selection/menu :log]}
      "History"]
-    (when (= menu :log)
-      (let [lines (events/log-lines lg sel) now (js/Date.now)]
-        [:ol.sel-menu.column.log {:aria-label "History"}
-         (if (empty? lines)
-           [:li.empty "No changes recorded"]
-           (for [{:keys [at by what n]} lines]
-             ^{:key (str at by what)}
-             [:li [:span.by by] [:span (events/log-label what) (when (> n 1) (str " (" n ")"))]
-              [:time {:dateTime (.toISOString (js/Date. at))} (events/format-time at now)]]))]))]
+    (when (= menu :log) [history])]
    [:button {:on-click [:selection/delete]} "Delete"]])
 
-(defn- edit-keydown [^js e]
-  (when (= "Escape" (.-key e))
-    (.preventDefault e)
-    (dispatch [:edit/cancel])))
+(def ^:private edit-keydown (on-escape [:edit/cancel]))
 
 (defc text-editor [] [editing [:editing] objects [:objects] cam [:camera]
                       o (get objects (:id editing))
@@ -346,6 +354,7 @@
     :else
     [:div.app
      [board/board]
+     [board/peers-layer]
      [:div.corner [session-bar] [people]]
      [toolbar]
      [zoom-bar]

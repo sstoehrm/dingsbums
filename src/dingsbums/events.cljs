@@ -225,10 +225,11 @@
         n (js/Date. now)
         two #(.padStart (str %) 2 "0")
         hm (str (two (.getHours d)) ":" (two (.getMinutes d)))]
-    (cond
-      (= (.toDateString d) (.toDateString n)) hm
-      (= (.getFullYear d) (.getFullYear n)) (str (.getDate d) " " (months (.getMonth d)) " " hm)
-      :else (str (.getDate d) " " (months (.getMonth d)) " " (.getFullYear d) " " hm))))
+    (if (= (.toDateString d) (.toDateString n))
+      hm
+      (str (.getDate d) " " (months (.getMonth d))
+           (when (not= (.getFullYear d) (.getFullYear n)) (str " " (.getFullYear d)))
+           " " hm))))
 
 (defn- with-presence
   "Handler f, telling the others when it changed my selection."
@@ -248,7 +249,7 @@
   "s as a name: control characters as spaces, trimmed, at most 32 characters;
   nil when blank."
   [s]
-  (let [n (str/trim (str/replace (str s) #"[\x00-\x1f\x7f]" " "))]
+  (let [n (str/trim (str/replace (str s) ops/name-control-chars " "))]
     (when-not (str/blank? n) (subs n 0 (min (count n) ops/max-name-length)))))
 
 (defn name-edit [db] {:db (assoc db :naming (or (:name db) ""))})
@@ -269,21 +270,27 @@
   [db tool]
   {:db (assoc db :tool (if (= tool (:tool db)) :select tool))})
 
+(def tool-keys
+  "The key that picks each tool, as the toolbar shows it."
+  {:select "V" :text "T" :frame "F" :shape "S" :sticky "N" :connection "L"
+   :dot "D" :counter "C" :scale-x "X" :scale-xy "Y"})
+
 (defn tool-hint
   "What to do with the active tool, nil for Select."
   [tool shape-kind]
-  (let [place (fn [what k] (str "Click or drag on the board to place " what " · " k " or Esc to cancel"))]
+  (let [k (tool-keys tool)
+        place (fn [what] (str "Click or drag on the board to place " what " · " k " or Esc to cancel"))]
     (case tool
-      :text (place "a text" "T")
-      :frame (place "a frame" "F")
-      :sticky (place "a sticky note" "N")
-      :dot (place "a dot" "D")
-      :counter (place "a box that counts the dots in it" "C")
-      :scale-x (place "a scale that averages its dots' x" "X")
-      :scale-xy (place "a scale that averages its dots' x and y" "Y")
+      :text (place "a text")
+      :frame (place "a frame")
+      :sticky (place "a sticky note")
+      :dot (place "a dot")
+      :counter (place "a box that counts the dots in it")
+      :scale-x (place "a scale that averages its dots' x")
+      :scale-xy (place "a scale that averages its dots' x and y")
       :shape (str "Click or drag on the board to place a " ({:rect "rectangle"} shape-kind (name shape-kind))
-                  " · S for the next shape, Esc to cancel")
-      :connection "Drag from one object to another to connect them · L or Esc to cancel"
+                  " · " k " for the next shape, Esc to cancel")
+      :connection (str "Drag from one object to another to connect them · " k " or Esc to cancel")
       nil)))
 (defn select-shape [db shape] {:db (assoc db :tool :shape :shape-kind shape)})
 (defn shapes-key
@@ -668,6 +675,8 @@
 
 (def ^:private arrows {"ArrowLeft" [-1 0] "ArrowRight" [1 0] "ArrowUp" [0 -1] "ArrowDown" [0 1]})
 
+(def ^:private key-tools (into {} (map (fn [[t k]] [(str/lower-case k) t])) (dissoc tool-keys :shape)))
+
 (defn key-action
   "The event for a key press outside text inputs, or nil to leave it to the browser."
   [{:keys [key ctrl? shift? alt? repeat?]}]
@@ -687,11 +696,9 @@
       (or alt? repeat?) nil
       (= key "Home") [:selection/layer :front]
       (= key "End") [:selection/layer :back]
-      (= k "s") [:tool/shapes]
+      (= k (str/lower-case (tool-keys :shape))) [:tool/shapes]
       (= k "h") [:hand/toggle]
-      :else (when-let [tool ({"v" :select "t" :text "f" :frame "n" :sticky "l" :connection
-                              "d" :dot "c" :counter "x" :scale-x "y" :scale-xy} k)]
-              [:tool/select tool]))))
+      :else (when-let [tool (key-tools k)] [:tool/select tool]))))
 
 (doseq [[id f] {:route/changed route-changed
                 :session/exists session-exists

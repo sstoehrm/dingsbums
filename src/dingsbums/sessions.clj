@@ -1,6 +1,6 @@
 (ns dingsbums.sessions
-  "All sessions in one atom: {sid {:objects {id obj} :log log :clients {ch user} :empty-since ms-or-nil}}
-  (log: see dingsbums.log),
+  "All sessions in one atom: {sid {:objects {id obj} :log log :logged entries :clients {ch user} :empty-since ms-or-nil}}
+  (log: see dingsbums.log; logged: the entries the last op added to it),
   a user being {:id :color} plus the presence it sent (:name :cursor :selection).
   The fns below are pure over that map; server.clj swap!s them in. Every fn is a
   no-op for an unknown sid."
@@ -17,22 +17,18 @@
 
 (defn- when-exists [m sid f] (if (contains? m sid) (f m) m))
 
-(defn upsert [m sid objs] (when-exists m sid #(update-in % [sid :objects] ops/upsert objs)))
-
-(defn patch [m sid patches] (when-exists m sid #(update-in % [sid :objects] ops/patch patches)))
-
-(defn delete [m sid ids] (when-exists m sid #(update-in % [sid :objects] ops/delete ids)))
-
 (defn apply-op
   "m with op ev ([op arg], ops/op?) applied to the session's objects and logged
-  as `by` at now."
+  as `by` at now; :logged holds the entries it added."
   [m sid [op arg :as ev] by now]
   (when-exists m sid (fn [m]
-                       (let [{:keys [objects log]} (get m sid)]
-                         (-> m
-                             (update-in [sid :log] log/add (log/entries objects log ev by now))
-                             (update-in [sid :objects] (case op :op/upsert ops/upsert :op/patch ops/patch :op/delete ops/delete)
-                                        arg))))))
+                       (let [{:keys [objects log]} (get m sid)
+                             es (log/entries objects log ev by now)]
+                         (update m sid assoc
+                                 :log (log/add log es)
+                                 :logged es
+                                 :objects ((case op :op/upsert ops/upsert :op/patch ops/patch :op/delete ops/delete)
+                                           objects arg))))))
 
 (defn replace-objects
   "m with the session's board replaced, e.g. by an import, and its log with it."

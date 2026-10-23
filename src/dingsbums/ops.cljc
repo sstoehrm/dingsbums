@@ -59,6 +59,8 @@
          false)))
 
 (def max-name-length 32)
+(def default-name "The name of someone who gave none." "Guest")
+(def name-control-chars "What a name must not contain." #"[\x00-\x1f\x7f]")
 (def max-selection 10000)
 
 (defn- finite? [x] (and (number? x) #?(:clj (Double/isFinite (double x)) :cljs (js/isFinite x))))
@@ -66,7 +68,7 @@
 (defn valid-name?
   "s is a user's name: 1–32 characters, no control characters."
   [s]
-  (and (string? s) (<= 1 (count s) max-name-length) (not (re-find #"[\x00-\x1f\x7f]" s))))
+  (and (string? s) (<= 1 (count s) max-name-length) (not (re-find name-control-chars s))))
 
 (def ^:private presence-ok
   "What a client may say about itself, with the check each value must pass. Its

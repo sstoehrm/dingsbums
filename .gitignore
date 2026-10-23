@@ -4,7 +4,6 @@ target/
 .shadow-cljs/
 .cpcache/
 dist/
-.clj-kondo/.cache/
 .lsp/
 .nrepl-port
 .calva/

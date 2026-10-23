@@ -101,9 +101,9 @@ of the other tools when adopting a row.
 `~/.m2`), copies the JARs aside and runs [Syft](https://github.com/anchore/syft)
 over them. Syft reads the Maven coordinates (`pom.properties`) inside each JAR,
 including JARs shaded into others; for a JAR without them it guesses from the
-file name, which may not match advisories, and the step warns about each one. Git and local source deps (`:git/sha`, `:local/root`) are
-source trees without coordinates: they are not in the SBOM, and the step warns
-about each one. Cache `~/.m2/repository` and `~/.gitlibs` so the resolve is
+file name, which may not match advisories. Git and local source deps
+(`:git/sha`, `:local/root`) are source trees without coordinates and are not
+in the SBOM. The step warns about each guessed JAR and each such dep. Cache `~/.m2/repository` and `~/.gitlibs` so the resolve is
 cheap; the gate caches the OSV-Scanner databases itself.
 
 OSV-Scanner runs offline against databases it downloads per ecosystem, so

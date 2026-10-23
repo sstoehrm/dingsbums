@@ -6,6 +6,7 @@
             [dingsbums.events :as events]
             [dingsbums.geom :as geom]
             [dingsbums.model :as model]
+            [dingsbums.ops :as ops]
             [dingsbums.themes :as themes]))
 
 (def font-family
@@ -23,7 +24,7 @@
 
 (defn user-color [i] (nth user-colors (mod (or i 0) (count user-colors))))
 
-(defn user-name [user] (or (:name user) "Guest"))
+(defn user-name [user] (or (:name user) ops/default-name))
 
 (defonce ^:private measure-ctx (delay (.getContext (js/document.createElement "canvas") "2d")))
 
@@ -179,6 +180,14 @@
     (readout! ctx dots o theme)
     (.restore ctx)))
 
+(defn- hairline-if-blends!
+  "Strokes the current path with a hairline when fill would vanish into the board."
+  [^js ctx fill theme zoom]
+  (when (model/blends? fill (:bg theme))
+    (set! (.-strokeStyle ctx) (:panel-border theme))
+    (set! (.-lineWidth ctx) (/ 1 zoom))
+    (.stroke ctx)))
+
 (defn- object! [^js ctx objects o editing-id theme zoom]
   (set! (.-lineWidth ctx) 2)
   (set! (.-strokeStyle ctx) (:text-strong theme))
@@ -207,22 +216,15 @@
                   (.beginPath ctx)
                   (.roundRect ctx x y w h sticky-radius)
                   (.fill ctx)
-                  (when (model/blends? (:fill o "#fff176") (:bg theme))
-                    (set! (.-strokeStyle ctx) (:panel-border theme))
-                    (set! (.-lineWidth ctx) (/ 1 zoom))
-                    (.stroke ctx))
+                  (hairline-if-blends! ctx (:fill o "#fff176") theme zoom)
                   (when-not (= editing-id (:id o)) (text! ctx o (model/text-color objects o))))
       :text (when-not (= editing-id (:id o))
               (text! ctx o (or (model/text-color objects o) (:text-strong theme))))
       :dot (let [fill (:fill o model/dot-fill)]
              (set! (.-fillStyle ctx) fill)
-             (.beginPath ctx)
-             (.ellipse ctx (+ x (/ w 2)) (+ y (/ h 2)) (/ w 2) (/ h 2) 0 0 (* 2 js/Math.PI))
+             (path! ctx (assoc o :shape :circle))
              (.fill ctx)
-             (when (model/blends? fill (:bg theme))
-               (set! (.-strokeStyle ctx) (:panel-border theme))
-               (set! (.-lineWidth ctx) (/ 1 zoom))
-               (.stroke ctx)))
+             (hairline-if-blends! ctx fill theme zoom))
       (:counter :scale-x :scale-xy) (box! ctx objects o theme zoom)
       :image (let [^js img (image (:src o))]
                (if (and (.-complete img) (pos? (.-naturalWidth img)))
@@ -310,17 +312,15 @@
 
 (defn- draw!
   "One frame. _tick is the image-load counter: naming it makes a loaded image redraw."
-  [^js ctx w h objects cam sel drag editing theme peers _tick]
+  [^js ctx w h objects cam sel drag editing theme _tick]
   (.clearRect ctx 0 0 w h)
   (.save ctx)
   (.scale ctx (:zoom cam) (:zoom cam))
   (.translate ctx (- (:x cam)) (- (:y cam)))
   (doseq [o (geom/draw-order objects)] (object! ctx objects o (:id editing) theme (:zoom cam)))
-  (peer-selections! ctx objects peers (:zoom cam))
   (selection! ctx objects sel (:zoom cam) theme)
   (when drag (drag! ctx objects drag (:zoom cam) theme))
-  (.restore ctx)
-  (peer-cursors! ctx cam peers))
+  (.restore ctx))
 
 (defn- pointer [^js e x y]
   {:sx x :sy y :button (.-button e) :shift? (.-shiftKey e) :ctrl? (or (.-ctrlKey e) (.-metaKey e))
@@ -359,9 +359,22 @@
                        :ctrl? (or (.-ctrlKey e) (.-metaKey e)) :shift? (.-shiftKey e) :sx x :sy y}])))
 
 (defdraw board [] [objects [:objects] cam [:camera] sel [:selection] drag [:drag]
-                   editing [:editing] tick [:img-tick] pref [:theme] dark? [:os-dark?] peers [:peers]
+                   editing [:editing] tick [:img-tick] pref [:theme] dark? [:os-dark?]
                    theme (themes/effective pref dark?)]
   {:attrs {:class "board"}
    :on-pointerdown on-down :on-pointermove on-move :on-pointerup on-up :on-pointerleave on-leave
    :on-dblclick on-dblclick :on-wheel on-wheel}
-  (fn [ctx {:keys [w h]}] (draw! ctx w h objects cam sel drag editing theme peers tick)))
+  (fn [ctx {:keys [w h]}] (draw! ctx w h objects cam sel drag editing theme tick)))
+
+;; the others on a canvas of their own over the board: their pointers move
+;; many times a second, and the board need not redraw for each
+(defdraw peers-layer [] [objects [:objects] cam [:camera] peers [:peers]]
+  {:attrs {:class "peers"}}
+  (fn [^js ctx {:keys [w h]}]
+    (.clearRect ctx 0 0 w h)
+    (.save ctx)
+    (.scale ctx (:zoom cam) (:zoom cam))
+    (.translate ctx (- (:x cam)) (- (:y cam)))
+    (peer-selections! ctx objects peers (:zoom cam))
+    (.restore ctx)
+    (peer-cursors! ctx cam peers)))

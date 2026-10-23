@@ -215,7 +215,7 @@
 (deftest export-and-import
   (let [sid (create!) c (connect sid)]
     (hello! c)
-    (swap! s/sessions s/upsert sid [a])
+    (swap! s/sessions s/apply-op sid [:op/upsert [a]] "Ada" 0)
     (let [res (req :get (str "/api/sessions/" sid "/export") {:as :bytes})]
       (is (= 200 (:status res)))
       (is (= "application/x-tar" (get-in res [:headers "content-type"])))
@@ -227,7 +227,7 @@
 
 (deftest import-rejects-garbage
   (let [sid (create!)]
-    (swap! s/sessions s/upsert sid [a])
+    (swap! s/sessions s/apply-op sid [:op/upsert [a]] "Ada" 0)
     (is (= 400 (:status (req :post (str "/api/sessions/" sid "/import") {:body "not a tar"}))))
     (is (= {"a" a} (get-in @s/sessions [sid :objects])) "session untouched")
     (is (= 404 (:status (req :post "/api/sessions/nope/import" {:body "x"}))))))
