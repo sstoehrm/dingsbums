@@ -174,9 +174,12 @@
     {:db (assoc db :you (first me) :peers (into {} (map (juxt :id identity)) others))}))
 
 (defn presence-update
-  "A peer's presence, or what changed of it."
+  "A peer's presence (with :color), or what changed of it. A change for a
+  peer I don't know yet waits for its hello, which brings all of it."
   [db user]
-  (when-not (= (:id user) (get-in db [:you :id])) {:db (update-in db [:peers (:id user)] merge user)}))
+  (let [id (:id user)]
+    (when (and (not= id (get-in db [:you :id])) (or (:color user) (get-in db [:peers id])))
+      {:db (update-in db [:peers id] merge user)})))
 
 (defn presence-left [db id] {:db (update db :peers dissoc id)})
 

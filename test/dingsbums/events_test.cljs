@@ -457,6 +457,7 @@
              (get-in (ev/presence-update db {:id "u2" :cursor [1 2]}) [:db :peers "u2"])) "updates are merged in")
       (is (= #{"u2" "u3"} (set (keys (:peers (:db (ev/presence-update db {:id "u3" :color 2})))))))
       (is (nil? (ev/presence-update db {:id "me" :color 0 :name "x"})) "not myself")
+      (is (nil? (ev/presence-update db {:id "u4" :name "Cy"})) "a part of someone not here yet: their hello brings all")
       (is (= {} (get-in (ev/presence-left db "u2") [:db :peers])))
       (is (= {} (get-in (ev/tube-disconnected db) [:db :peers])) "offline: nobody is known")
       (is (= [nil {}] ((juxt :you :peers) (:db (ev/route-changed db ""))))))))
