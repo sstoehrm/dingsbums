@@ -39,7 +39,22 @@
 
 (defn- send! [{:keys [conn]} ev] (ws/send! conn (pr-str ev)))
 
-(defn- hello! [c] (send! c [:session/hello]) (recv c))
+(defn- hello!
+  "Says hello; the snapshot it gets back. Reads up to the roster after it,
+  skipping what it heard of others before."
+  [c]
+  (send! c [:session/hello])
+  (loop [snap nil]
+    (let [m (recv c)]
+      (case (first m)
+        :session/snapshot (recur m)
+        :presence/update (recur snap)
+        snap))))
+
+(defn- hello-both!
+  "c1 then c2 say hello; what c1 hears of c2 joining."
+  [c1 c2]
+  (hello! c1) (hello! c2) (recv c1))
 
 (def a {:id "a" :kind :sticky :x 0 :y 0 :w 10 :h 10})
 
@@ -83,6 +98,7 @@
   (let [sid (create!) c1 (connect sid) c2 (connect sid)]
     (is (= [:session/snapshot {}] (hello! c1)))
     (hello! c2)
+    (recv c1)
     (send! c1 [:op/upsert [a]])
     (is (= [:op/upsert [a]] (recv c2)))
     (is (quiet? c1) "no echo to the sender")
@@ -93,7 +109,7 @@
 
 (deftest patches-are-applied-and-forwarded
   (let [sid (create!) c1 (connect sid) c2 (connect sid)]
-    (hello! c1) (hello! c2)
+    (hello-both! c1 c2)
     (send! c1 [:op/upsert [a]])
     (recv c2)
     (send! c1 [:op/patch [{:id "a" :x 40}]])
@@ -123,6 +139,31 @@
     (send! c1 [:evil/event 1])
     (send! c1 [:op/upsert [a]])
     (is (= [:op/upsert [a]] (recv c2)) "only the valid op is forwarded, the channel survives")))
+
+(deftest presence-roster-updates-and-leaving
+  (let [sid (create!) c1 (connect sid)]
+    (send! c1 [:session/hello])
+    (recv c1)
+    (let [[ev you roster] (recv c1)]
+      (is (= [:presence/roster [{:id you :color 0}]] [ev roster]) "everyone in the session, me included")
+      (send! c1 [:presence/update {:name "Ada" :cursor [10 20]}])
+      (hello! c1) ; once it is answered, the update before it is in
+      (let [c2 (connect sid)
+            _ (send! c2 [:session/hello])
+            _ (recv c2)
+            [_ you2 roster2] (recv c2)]
+        (is (= #{{:id you :color 0 :name "Ada" :cursor [10 20]} {:id you2 :color 1}} (set roster2))
+            "a newcomer sees who is there and where")
+        (is (= [:presence/update {:id you2 :color 1}] (recv c1)) "the others hear of a newcomer")
+        (send! c2 [:presence/update {:selection ["a"]}])
+        (is (= [:presence/update {:id you2 :selection ["a"]}] (recv c1)) "only what changed")
+        (is (quiet? c2) "no echo to the sender")
+        (send! c2 [:presence/update {:color 5}])
+        (send! c2 [:presence/update {:id you}])
+        (send! c2 [:presence/update {:name ""}])
+        (is (quiet? c1) "invalid presence is dropped")
+        (ws/close! (:conn c2))
+        (is (= [:presence/left you2] (recv c1)))))))
 
 (deftest clients-and-idle-clock
   (let [sid (create!) c (connect sid)]

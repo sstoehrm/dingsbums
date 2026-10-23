@@ -15,9 +15,14 @@
 
 (defn- typing? [^js e] (contains? #{"INPUT" "TEXTAREA" "SELECT"} (.. e -target -tagName)))
 
+(defn- modal?
+  "The name dialog is open: the board behind it takes no keys or pastes."
+  []
+  (let [{:keys [route name naming]} @state/app-db] (events/name-dialog? route name naming)))
+
 (defn- on-keydown [^js e]
   ;; off the board (the landing page scrolls) every key is the browser's
-  (when (and (= :board (:route @state/app-db)) (not (typing? e)))
+  (when (and (= :board (:route @state/app-db)) (not (typing? e)) (not (modal?)))
     (when-let [action (events/key-action {:key (.-key e) :ctrl? (or (.-ctrlKey e) (.-metaKey e))
                                           :shift? (.-shiftKey e) :alt? (.-altKey e) :repeat? (.-repeat e)})]
       (.preventDefault e)
@@ -83,7 +88,7 @@
       (when image (let [n @copies] (js/setTimeout #(write-image! image data n) 0))))))
 
 (defn- on-paste [^js e]
-  (when-not (typing? e)
+  (when-not (or (typing? e) (modal?))
     (let [^js data (.-clipboardData e)
           objs (or (events/read-copied (.getData data events/clipboard-type))
                    (events/read-copied (events/html-copied (.getData data "text/html"))))
@@ -105,10 +110,13 @@
 (defn- stored-hand? []
   (try (= "1" (js/localStorage.getItem events/hand-storage-key)) (catch :default _ false)))
 
+(defn- stored-name []
+  (try (events/clean-name (js/localStorage.getItem events/name-storage-key)) (catch :default _ nil)))
+
 (defn- on-resize [] (dispatch [:viewport (.-innerWidth js/window) (.-innerHeight js/window)]))
 
 (defn init []
-  (mount! [views/app] (root) (assoc events/initial-db :theme (stored-theme) :hand? (stored-hand?)))
+  (mount! [views/app] (root) (assoc events/initial-db :theme (stored-theme) :hand? (stored-hand?) :name (stored-name)))
   (let [dark (js/window.matchMedia "(prefers-color-scheme: dark)")]
     (.addEventListener dark "change" #(dispatch [:theme/os (.-matches %)]))
     (dispatch [:theme/os (.-matches dark)]))
