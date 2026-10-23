@@ -35,6 +35,9 @@ can't think of right now. That's what a whiteboard is full of.
 
 ## Features
 
+- See who is here: everyone's name in the top left, their pointers with their
+  names on the board, and what they have selected outlined in their colour.
+  You give your name once; this browser remembers it (click it to change it).
 - Frames, sticky notes, text, shapes (circle, rectangle, star, arrow) and
   connections between them.
 - Dots and boxes that measure them, for dot voting: a counting box shows how
@@ -151,9 +154,11 @@ GitHub release.
 
 dingsbums has no accounts, analytics, cookies or connection logs. A board
 holds whatever its participants put on it, only in the server's memory, until
-the session ends (15 minutes after the last participant leaves). Your browser
-keeps your theme and hand-mode choice in its local storage; nothing else is
-stored. Whoever runs the server, and any reverse proxy in front of it, can log
+the session ends (15 minutes after the last participant leaves). The name you
+give, your pointer position and your selection go to the server and to the
+others on the board while you are connected, and are dropped when you leave.
+Your browser keeps your name, theme and hand-mode choice in its local
+storage; nothing else is stored. Whoever runs the server, and any reverse proxy in front of it, can log
 visitors' IP addresses; that is their setup, not dingsbums's.
 
 ## Security

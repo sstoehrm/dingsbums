@@ -78,8 +78,29 @@
   .session-bar, .toolbar, .zoom-bar, .sel-toolbar { position: absolute; display: flex; gap: 6px; align-items: center;
     background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 6px; }
   /* navigation: translucent and blurred over the board */
-  .session-bar { top: 12px; left: 12px; padding-left: 14px; max-width: calc(100% - 24px); flex-wrap: wrap;
+  /* the top left: the session bar, who is here below it */
+  .corner { position: absolute; top: 12px; left: 12px; max-width: calc(100% - 24px); display: flex; flex-direction: column;
+    align-items: flex-start; gap: 6px; }
+  .session-bar { position: static; padding-left: 14px; max-width: 100%; flex-wrap: wrap;
     background: var(--panel); background: color-mix(in srgb, var(--panel) 66%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+  .people { display: flex; flex-wrap: wrap; gap: 4px; }
+  .person { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 10px; line-height: 1.2;
+    border: 1px solid var(--panel-border); border-radius: 999px; color: var(--text);
+    background: color-mix(in srgb, var(--panel) 66%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+  .person .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .person .you { color: var(--text-muted); }
+  .backdrop { position: absolute; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center;
+    padding: 16px; background: color-mix(in srgb, var(--bg) 60%, transparent); }
+  .name-dialog { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 28px;
+    background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; }
+  .name-dialog h2 { margin: 0; font-size: 18px; font-weight: 500; color: var(--text-strong); }
+  .name-dialog .note { margin: 0 0 14px; font-size: 14px; color: var(--text-muted); }
+  .name-dialog label { font-size: 13px; color: var(--text-muted); }
+  .name-dialog .row { display: flex; gap: 8px; }
+  .name-dialog input { flex: 1; min-width: 0; font: inherit; font-size: 15px; padding: 10px 12px;
+    border: 1px solid var(--panel-border); border-radius: 4px; background: var(--panel); color: inherit; }
+  .name-dialog button { font-size: 15px; padding: 10px 16px; }
+  .name-dialog button:disabled { cursor: default; opacity: 0.5; }
   .session-bar .sid { font-size: 13px; padding: 0 4px; color: var(--text-muted); user-select: all; }
   .badge { background: #c62828; color: #fff; border-radius: 4px; padding: 2px 6px; font-size: 12px; }
   .msg { font-size: 13px; color: var(--text-muted); }

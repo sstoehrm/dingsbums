@@ -450,6 +450,74 @@
         "a grouped connection keeps a valid group"))
   (is (nil? (ev/paste-objects ev/initial-db [sticky])) "ignored on the landing screen"))
 
+;; who is here
+
+(deftest user-name
+  (testing "asked for on a board until given; saved in this browser"
+    (is (ev/name-dialog? :board nil nil))
+    (is (not (ev/name-dialog? :landing nil nil)))
+    (is (not (ev/name-dialog? :board "Ada" nil)))
+    (is (ev/name-dialog? :board "Ada" "Ad") "renaming")
+    (let [fx (ev/name-save (:db (ev/name-input board "  Ada  ")))]
+      (is (= ["Ada" nil] ((juxt :name :naming) (:db fx))))
+      (is (= "Ada" (:name/store fx)))
+      (is (nil? (:tube/send fx)) "offline: the next hello tells it")))
+  (is (nil? (ev/name-save (:db (ev/name-input board "   ")))) "a blank name is not taken")
+  (is (nil? (ev/name-save board)) "nor no name")
+  (is (= "a b" (get-in (ev/name-save (:db (ev/name-input board "a\tb"))) [:db :name])) "no control characters")
+  (is (= 32 (count (get-in (ev/name-save (:db (ev/name-input board (apply str (repeat 40 "x"))))) [:db :name]))))
+  (is (= [[:presence/update {:name "Bo"}]]
+         (:tube/send (ev/name-save (:db (ev/name-input (assoc board :online? true) "Bo"))))))
+  (testing "renaming starts from the name and can be cancelled"
+    (let [db (assoc board :name "Ada")]
+      (is (= "Ada" (get-in (ev/name-edit db) [:db :naming])))
+      (is (nil? (get-in (ev/name-cancel (:db (ev/name-edit db))) [:db :naming])))))
+  (is (nil? (ev/name-cancel board)) "without a name the dialog stays")
+  (is (nil? (get-in (ev/route-changed (assoc board :name "Ada" :naming "x") "") [:db :naming])) "leaving closes it"))
+
+(deftest presence
+  (let [online (assoc with-objs :online? true)]
+    (testing "the pointer's board position goes out, at most every 33 ms"
+      (let [db (assoc online :camera {:x 100 :y 0 :zoom 2})
+            fx1 (ev/pointer-move db (pe 10 20 :t 100))
+            fx2 (ev/pointer-move (:db fx1) (pe 12 20 :t 110))
+            fx3 (ev/pointer-move (or (:db fx2) (:db fx1)) (pe 14 20 :t 140))]
+        (is (= [[:presence/update {:cursor [105 10]}]] (:tube/send fx1)))
+        (is (nil? (:tube/send fx2)) "throttled")
+        (is (= [[:presence/update {:cursor [107 10]}]] (:tube/send fx3)))
+        (testing "a throttled position still goes out a moment later"
+          (let [fx4 (ev/pointer-move (:db fx3) (pe 16 20 :t 150))
+                fx5 (ev/pointer-move (:db fx4) (pe 18 20 :t 160))
+                fx6 (ev/cursor-flush (:db fx5))]
+            (is (= ev/send-interval (:cursor/flush-later fx4)))
+            (is (nil? (:cursor/flush-later fx5)) "one flush at a time")
+            (is (= [[:presence/update {:cursor [109 10]}]] (:tube/send fx6)) "the latest position")
+            (is (nil? (ev/cursor-flush (:db fx6))) "nothing left")
+            (is (nil? (ev/cursor-flush (:db (ev/pointer-leave (:db fx5))))) "left the board meanwhile")))))
+    (is (nil? (ev/pointer-move with-objs (pe 10 20 :t 100))) "offline: nothing")
+    (is (= [[:presence/update {:cursor nil}]] (:tube/send (ev/pointer-leave online))) "off the board")
+    (is (nil? (ev/pointer-leave with-objs)))
+    (let [db (:db (ev/pointer-down online (pe 10 10)))
+          fx (ev/pointer-move db (pe 50 10 :t 100))]
+      (is (= [[:op/patch [{:id "a" :x 40 :y 0 :w 100 :h 100}]] [:presence/update {:cursor [50 10]}]] (:tube/send fx))
+          "a drag sends its patch and the cursor")))
+  (testing "hello is preceded by my name and selection, so the others never see me nameless"
+    (is (= [[:presence/update {:name "Ada" :selection ["a" "b"]}] [:session/hello]]
+           (:tube/send (ev/tube-connected (assoc board :name "Ada" :selection #{"b" "a"})))))
+    (is (= [[:session/hello]] (:tube/send (ev/tube-connected board)))))
+  (testing "who is here"
+    (let [db (:db (ev/presence-roster board "me" [{:id "me" :color 0} {:id "u2" :color 1 :name "Bo"}]))]
+      (is (= {:id "me" :color 0} (:you db)))
+      (is (= {"u2" {:id "u2" :color 1 :name "Bo"}} (:peers db)))
+      (is (= {:id "u2" :color 1 :name "Bo" :cursor [1 2]}
+             (get-in (ev/presence-update db {:id "u2" :cursor [1 2]}) [:db :peers "u2"])) "updates are merged in")
+      (is (= #{"u2" "u3"} (set (keys (:peers (:db (ev/presence-update db {:id "u3" :color 2})))))))
+      (is (nil? (ev/presence-update db {:id "me" :color 0 :name "x"})) "not myself")
+      (is (nil? (ev/presence-update db {:id "u4" :name "Cy"})) "a part of someone not here yet: their hello brings all")
+      (is (= {} (get-in (ev/presence-left db "u2") [:db :peers])))
+      (is (= {} (get-in (ev/tube-disconnected db) [:db :peers])) "offline: nobody is known")
+      (is (= [nil {}] ((juxt :you :peers) (:db (ev/route-changed db ""))))))))
+
 ;; tube wiring, through hammer with a fake WebSocket
 
 (def sockets (atom []))
@@ -483,8 +551,13 @@
     (is (= {"a" sticky} (:objects @state/app-db)) "snapshot applied; the unknown event was dropped")
     (dispatch-sync [:pointer/down (pe 10 10)])
     (dispatch-sync [:pointer/up (pe 10 10)])
+    (is (= (pr-str [:presence/update {:selection ["a"]}]) (last (sent))) "the others see what I selected")
     (dispatch-sync [:selection/delete])
-    (is (= "[:op/delete [\"a\"]]" (last (sent))))
+    (is (= [(pr-str [:op/delete ["a"]]) (pr-str [:presence/update {:selection []}])] (take-last 2 (sent))))
+    (push! ws [:presence/roster "me" [{:id "me" :color 0} {:id "u2" :color 1}]])
+    (push! ws [:presence/update {:id "u2" :color 1 :name "Bo"}])
+    (t/flush!)
+    (is (= {"u2" {:id "u2" :color 1 :name "Bo"}} (:peers @state/app-db)) "presence comes in")
     (dispatch-sync [:history/undo])
     (is (= (pr-str [:op/upsert [sticky]]) (last (sent))))
     (t/check-errors!)))

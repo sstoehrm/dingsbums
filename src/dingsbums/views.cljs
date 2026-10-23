@@ -5,6 +5,7 @@
             [dingsbums.events :as events]
             [dingsbums.geom :as geom]
             [dingsbums.model :as model]
+            [dingsbums.ops :as ops]
             [dingsbums.themes :as themes]))
 
 (defn- icon [& shapes] (into [:svg.icon {:viewBox "0 0 24 24" :aria-hidden "true"}] shapes))
@@ -123,6 +124,8 @@
    [:div.spinner]
    [:p (if online? "Loading board…" "Connecting…")]])
 
+(defn- focus! [^js el] (when el (.focus el)))
+
 (defn- import-change [^js e]
   (let [^js input (.-target e)
         f (aget (.-files input) 0)]
@@ -150,6 +153,33 @@
     (for [n (rest themes/names)] ^{:key n} [:option {:value (name n)} (name n)])]
    [:span.badge {:hidden (boolean online?)} "offline"]
    [:span.msg msg]])
+
+(defc people [] [you [:you] my-name [:name] peers [:peers]]
+  [:div.people
+   [:button.person {:title "Change your name" :on-click [:name/edit]}
+    [:span.dot {:style {:background (board/user-color (:color you))}}]
+    (or my-name "Guest") [:span.you "(you)"]]
+   (for [user (sort-by (juxt :color :id) (vals peers))]
+     ^{:key (:id user)} [:span.person [:span.dot {:style {:background (board/user-color (:color user))}}]
+                         (board/user-name user)])])
+
+(defn- name-keydown [^js e]
+  (when (= "Escape" (.-key e))
+    (.preventDefault e)
+    (dispatch [:name/cancel])))
+
+;; asked once, then kept in this browser
+(defc name-dialog [] [my-name [:name] naming [:naming] draft (or naming "")]
+  [:div.backdrop
+   [:form.name-dialog {:role "dialog" :aria-modal "true" :aria-labelledby "name-title"
+                            :on-submit (fn [^js e] (.preventDefault e) (dispatch [:name/save]))}
+    [:h2#name-title (if my-name "Change your name" "What should the others call you?")]
+    [:p.note "Shown beside your pointer and in the corner; this browser remembers it."]
+    [:label {:for "user-name"} "Your name"]
+    [:div.row
+     [:input {:id "user-name" :value draft :maxLength ops/max-name-length :autocomplete "nickname" :ref focus!
+              :on-input (fn [^js e] (dispatch [:name/input (.. e -target -value)])) :on-keydown name-keydown}]
+     [:button.primary {:type "submit" :disabled (nil? (events/clean-name draft))} "Save"]]]])
 
 (def ^:private tools
   [[:select "Select (V)"] [:text "Text (T)"] [:frame "Frame (F)"] [:shape "Shapes (S, again: next shape)"]
@@ -276,8 +306,6 @@
    [:button {:hidden (not grouped?) :on-click [:selection/ungroup]} "Ungroup"]
    [:button {:on-click [:selection/delete]} "Delete"]])
 
-(defn- focus! [^js el] (when el (.focus el)))
-
 (defn- edit-keydown [^js e]
   (when (= "Escape" (.-key e))
     (.preventDefault e)
@@ -298,16 +326,17 @@
                           :on-input (fn [^js e] (dispatch [:edit/input (.. e -target -value)]))
                           :on-blur [:edit/commit] :on-keydown edit-keydown}])
 
-(defc app [] [route [:route] loading? [:loading?] editing-id [:editing :id]]
+(defc app [] [route [:route] loading? [:loading?] editing-id [:editing :id] my-name [:name] naming [:naming]]
   (cond
     (= route :landing) [landing]
     loading? [loading]
     :else
     [:div.app
      [board/board]
-     [session-bar]
+     [:div.corner [session-bar] [people]]
      [toolbar]
      [zoom-bar]
      [tool-hint]
      [selection-toolbar]
-     (when editing-id [text-editor])]))
+     (when editing-id [text-editor])
+     (when (events/name-dialog? route my-name naming) [name-dialog])]))

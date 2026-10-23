@@ -50,6 +50,26 @@
   (is (ops/op? [:op/patch [{:id "a" :x 1 :y 2}]]))
   (is (not (ops/op? [:op/patch [{:id "a" :fill "red"}]]))))
 
+(deftest presence-updates-are-validated
+  (is (ops/presence? {:name "Ada"}))
+  (is (ops/presence? {:cursor [1 2.5] :selection ["a" "b"]}))
+  (is (ops/presence? {:cursor nil :selection []}))
+  (is (not (ops/presence? {})))
+  (is (not (ops/presence? [:name "Ada"])))
+  (is (not (ops/presence? {:name ""})))
+  (is (not (ops/presence? {:name (apply str (repeat 33 "x"))})))
+  (is (not (ops/presence? {:name "a\nb"})) "no control characters")
+  (is (not (ops/presence? {:cursor [1]})))
+  (is (not (ops/presence? {:cursor ["1" 2]})))
+  (is (not (ops/presence? {:cursor [1 ##NaN]})))
+  (is (not (ops/presence? {:selection "a"})))
+  (is (not (ops/presence? {:selection [1]})))
+  (is (not (ops/presence? {:selection ["no spaces"]})) "ids like object ids")
+  (is (ops/presence? {:selection (vec (repeat ops/max-selection "a"))}))
+  (is (not (ops/presence? {:selection (vec (repeat (inc ops/max-selection) "a"))})) "bounded")
+  (is (not (ops/presence? {:color 3})) "the server picks the colour")
+  (is (not (ops/presence? {:id "someone-else"}))))
+
 (deftest dots-and-measuring-boxes-are-objects
   (is (ops/valid-object? {:id "d" :kind :dot :x 0 :y 0 :w 24 :h 24 :fill "#e57373"}))
   (doseq [k [:counter :scale-x :scale-xy]]
