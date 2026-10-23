@@ -21,7 +21,8 @@
   (let [{:keys [route name naming]} @state/app-db] (events/name-dialog? route name naming)))
 
 (defn- on-keydown [^js e]
-  (when-not (or (typing? e) (modal?))
+  ;; off the board (the landing page scrolls) every key is the browser's
+  (when (and (= :board (:route @state/app-db)) (not (typing? e)) (not (modal?)))
     (when-let [action (events/key-action {:key (.-key e) :ctrl? (or (.-ctrlKey e) (.-metaKey e))
                                           :shift? (.-shiftKey e) :alt? (.-altKey e) :repeat? (.-repeat e)})]
       (.preventDefault e)

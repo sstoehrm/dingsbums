@@ -69,3 +69,12 @@
   (is (not (ops/presence? {:selection (vec (repeat (inc ops/max-selection) "a"))})) "bounded")
   (is (not (ops/presence? {:color 3})) "the server picks the colour")
   (is (not (ops/presence? {:id "someone-else"}))))
+
+(deftest dots-and-measuring-boxes-are-objects
+  (is (ops/valid-object? {:id "d" :kind :dot :x 0 :y 0 :w 24 :h 24 :fill "#e57373"}))
+  (doseq [k [:counter :scale-x :scale-xy]]
+    (is (ops/valid-object? {:id "m" :kind k :x 0 :y 0 :w 300 :h 200}) k))
+  (doseq [s [:top :bottom :left :right]]
+    (is (ops/valid-object? {:id "m" :kind :counter :side s}) s))
+  (is (not (ops/valid-object? {:id "m" :kind :counter :side :middle})))
+  (is (not (ops/valid-object? {:id "m" :kind :counter :side "top"}))))
