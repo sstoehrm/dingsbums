@@ -536,23 +536,22 @@
       (is (= {} (get-in (ev/route-changed db "") [:db :log])) "leaving the board drops it")
       (is (= 2 (count (get-in (ev/log-add db [["a" (e 2 "Bo" :moved)]]) [:db :log "a"]))) "an entry already there: once"))
     (testing "the lines for a selection: newest first, a group's change once with a count"
-      (let [lg {"a" [(e 1000 "Ada" :created) (e 9000 "Bo" :moved)] "b" [(e 5000 "Ada" :created) (e 9000 "Bo" :moved)]}
-            lines #(mapv (fn [l] (dissoc l :key)) (ev/log-lines %1 %2))]
+      (let [lg {"a" [(e 1000 "Ada" :created) (e 9000 "Bo" :moved)] "b" [(e 5000 "Ada" :created) (e 9000 "Bo" :moved)]}]
         (is (= [{:at 9000 :by "Bo" :what :moved :n 2} {:at 5000 :by "Ada" :what :created :n 1}
                 {:at 1000 :by "Ada" :what :created :n 1}]
-               (lines lg #{"a" "b"})))
-        (is (= [{:at 9000 :by "Bo" :what :moved :n 1 :key ["a" 1]} {:at 1000 :by "Ada" :what :created :n 1 :key ["a" 0]}]
-               (ev/log-lines lg #{"a"})))
+               (ev/log-lines lg #{"a" "b"})))
+        (is (= [{:at 9000 :by "Bo" :what :moved :n 1} {:at 1000 :by "Ada" :what :created :n 1}] (ev/log-lines lg #{"a"})))
         (is (= [] (ev/log-lines lg #{"nope"})))
         (is (= [{:at 6900 :by "Bo" :what :filled :n 3} {:at 1000 :by "Bo" :what :filled :n 1}]
-               (lines {"a" [(e 5000 "Bo" :filled)] "b" [(e 5003 "Bo" :filled)] "c" [(e 6900 "Bo" :filled)]
-                       "d" [(e 1000 "Bo" :filled)]}
-                      #{"a" "b" "c" "d"}))
+               (ev/log-lines {"a" [(e 5000 "Bo" :filled)] "b" [(e 5003 "Bo" :filled)] "c" [(e 6900 "Bo" :filled)]
+                              "d" [(e 1000 "Bo" :filled)]}
+                             #{"a" "b" "c" "d"}))
             "one op per object: a group's change within 2 s is one line")
         (let [ids (map str (range 20))
               ls (ev/log-lines (zipmap ids (map #(vector (e 7000 (if (even? %) "Ada" "Bo") :moved)) (range 20))) ids)]
-          (is (not (apply distinct? (map (juxt :at :by :what) ls))) "two changes interleaved in one ms: alike lines")
-          (is (apply distinct? (map :key ls)) "each line its own key"))))
+          (is (= [{:at 7000 :by "Ada" :what :moved :n 10} {:at 7000 :by "Bo" :what :moved :n 10}] ls)
+              "two people's changes interleaved in one ms: a line each")
+          (is (apply distinct? (map (juxt :at :by :what) ls)) "each line its own key"))))
     (testing "times: today just the clock, else the day too"
       (let [at (.getTime (js/Date. 2026 9 23 9 5))]
         (is (= "09:05" (ev/format-time at (.getTime (js/Date. 2026 9 23 18 0)))))
