@@ -62,6 +62,13 @@
   (is (ops/presence? {:name (apply str (repeat 16 "\uD83D\uDE00"))}) "32 UTF-16 units, an emoji is two")
   (is (not (ops/presence? {:name "Ada\uD83D"})) "no half an emoji")
   (is (not (ops/presence? {:name "\uDE00Ada"})))
+  (let [h "\uD83D" l "\uDE00" e (str h l)]
+    (doseq [[s blanked] [[(str "a" e "b") (str "a" e "b")] [(str e "\t" e) (str e " " e)]
+                         [(str h "a") " a"] [(str "a" h "b") "a b"] [(str "a" h) "a "]
+                         [(str l "a") " a"] [(str "a" l "b") "a b"] [(str "a" l) "a "]
+                         [(str e l) (str e " ")] [(str h e) (str " " e)] [(str l h) "  "]]]
+      (is (= blanked (ops/blank-junk s)) "only stray halves of an emoji become spaces")
+      (is (= (= s blanked) (ops/valid-name? s)))))
   (is (not (ops/presence? {:cursor [1]})))
   (is (not (ops/presence? {:cursor ["1" 2]})))
   (is (not (ops/presence? {:cursor [1 ##NaN]})))

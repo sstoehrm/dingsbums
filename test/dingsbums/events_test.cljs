@@ -478,6 +478,14 @@
       (is (= (str "Ada" "\uD83D\uDE00") (ev/clean-name "Ada\uD83D\uDE00")))
       (is (= "A b" (ev/clean-name "A\uDE00b\uD83D")) "a stray half is dropped like a control character")
       (is (every? ops/valid-name? (map #(ev/clean-name (str (apply str (repeat % "x")) (apply str (repeat 20 "\uD83D\uDE00")))) (range 33))))))
+  (testing "in the browser, as on the server"
+    (let [h "\uD83D" l "\uDE00" e (str h l)]
+      (doseq [[s blanked] [[(str "a" e "b") (str "a" e "b")] [(str e "\t" e) (str e " " e)]
+                           [(str h "a") " a"] [(str "a" h "b") "a b"] [(str "a" h) "a "]
+                           [(str l "a") " a"] [(str "a" l "b") "a b"] [(str "a" l) "a "]
+                           [(str e l) (str e " ")] [(str h e) (str " " e)] [(str l h) "  "]]]
+        (is (= blanked (ops/blank-junk s)) "only stray halves of an emoji become spaces")
+        (is (= (= s blanked) (ops/valid-name? s))))))
   (is (= [[:presence/update {:name "Bo"}]]
          (:tube/send (ev/name-save (:db (ev/name-input (assoc board :online? true) "Bo"))))))
   (testing "renaming starts from the name and can be cancelled"
