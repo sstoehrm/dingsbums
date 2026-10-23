@@ -93,6 +93,9 @@
   .zoom { font-size: 13px; min-width: 4ch; text-align: center; font-variant-numeric: tabular-nums; }
   .sep { align-self: stretch; width: 1px; background: var(--panel-border); margin: 4px; }
   .sel-toolbar { z-index: 2; }
+  .sel-toolbar .grip { display: flex; align-items: center; justify-content: center; width: 28px; height: 36px; padding: 0;
+    border-color: transparent; background: transparent; cursor: grab; touch-action: none; }
+  .sel-toolbar .grip:hover { background: var(--bg); }
   .hint { position: absolute; left: 50%; bottom: 108px; transform: translateX(-50%); max-width: calc(100% - 32px);
     border: 1px solid var(--panel-border); border-radius: 8px; padding: 8px 12px; font-size: 13px; text-align: center;
     pointer-events: none; background: var(--panel); background: color-mix(in srgb, var(--panel) 80%, transparent);

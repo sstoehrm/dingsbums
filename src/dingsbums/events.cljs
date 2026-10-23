@@ -258,6 +258,14 @@
     (let [[db ops] (finish-edit (assoc db :message nil :sel-menu nil))]
       (with-ops (press db e (world db e)) ops))))
 
+(defn grip-down
+  "A press on the selection toolbar's grip: moves the selection like a drag on it,
+  so small or far-zoomed objects move without hitting their handles."
+  [db {:keys [button t] :as e}]
+  (let [start (model/movable (:objects db) (:selection db))]
+    (when (and (= button 0) (seq start))
+      {:db (assoc db :sel-menu nil :drag {:type :move :origin (world db e) :start start :last-sent t})})))
+
 (defn- live-update
   "Applies a gesture's changes locally; sends their geometry when the last send is
   send-interval ago."
@@ -559,6 +567,7 @@
                 :pointer/move pointer-move
                 :pointer/up pointer-up
                 :pointer/dblclick dblclick
+                :pointer/grip grip-down
                 :edit/start edit-start
                 :edit/input edit-input
                 :edit/commit edit-commit

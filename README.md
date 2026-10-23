@@ -40,6 +40,8 @@ can't think of right now. That's what a whiteboard is full of.
 - Fill and text colours, groups, locking, undo/redo.
 - Layering: bring a selection (or group) to the front, forward, backward or
   to the back from the toolbar above it; Home and End for front and back.
+- Drag the grip at the left of that toolbar to move the selection: handy for
+  small objects or when zoomed far out, where the resize handles cover them.
 - Paste images and text straight onto the board.
 - Copy and paste (Ctrl+C, Ctrl+V) whatever is selected, images included, also
   into another board: the copies keep their layout and the connections

@@ -21,6 +21,7 @@
    :redo (icon [:path {:d "M15 14l5-5-5-5"}] [:path {:d "M20 9H10a6 6 0 0 0 0 12h3"}])
    :hand (icon [:path {:d "M8 13V6a1.5 1.5 0 0 1 3 0v5"}] [:path {:d "M11 11V4.5a1.5 1.5 0 0 1 3 0V11"}]
                [:path {:d "M14 11V6a1.5 1.5 0 0 1 3 0v7c0 4-2.5 7-6 7-2.5 0-4-1.2-5.5-3.5L3.8 13a1.5 1.5 0 0 1 2.4-1.8L8 13"}])
+   :grip (into (icon) (for [x [9 15] y [6 12 18]] [:circle {:cx x :cy y :r 1.5 :fill "currentColor" :stroke "none"}]))
    :minus (icon [:path {:d "M6 12h12"}])
    :plus (icon [:path {:d "M6 12h12"}] [:path {:d "M12 6v12"}])
    :circle (icon [:circle {:cx 12 :cy 12 :r 8}])
@@ -207,12 +208,16 @@
                             texts? (boolean (and (seq os) (every? #(model/text-kinds (:kind %)) os)))
                             text-colors (set (map :color os))
                             locked? (boolean (and (seq os) (every? :locked? os)))
+                            movable? (boolean (seq (model/movable objects sel)))
                             groupable? (>= (count (remove #(= :connection (:kind %)) os)) 2)
                             grouped? (boolean (some :group os))]
   ;; centered over the selection, kept 8px inside the viewport
   [:div.sel-toolbar {:hidden (not show?) :class (when (< top menu-room) "down")
                      :style {:left (str cx "px") :top (str top "px")
                              :transform (str "translateX(clamp(" (- 8 cx) "px, -50%, calc(" (- vw 8 cx) "px - 100%)))")}}
+   [:button.grip {:hidden (not movable?) :title "Move: drag" :aria-label "Move"
+                  :on-pointerdown #(board/grab! % :pointer/grip)}
+    (icons :grip)]
    [:span.menu {:hidden (empty? colors)}
     [:button.menu-button {:title "Fill" :class (when (= menu :fill) "active") :on-click [:selection/menu :fill]}
      [:span.dot {:style {:background (common-color fills "transparent")}}]]

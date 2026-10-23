@@ -192,6 +192,25 @@
       (is (= {:x 0 :y 0 :w 150 :h 120} (select-keys (get-in fx [:db :objects "a"]) [:x :y :w :h])))
       (is (= 1 (count (get-in fx [:db :history :undo])))))))
 
+(deftest grip-moving
+  (testing "the toolbar's grip moves the selection from wherever it is grabbed, zoomed out too"
+    (let [db (assoc with-objs :selection #{"a" "b"} :sel-menu {:menu :layer :for #{"a" "b"}}
+                              :camera {:x 0 :y 0 :zoom 0.5})
+          down (ev/grip-down db (pe 400 -40))
+          fx1 (ev/pointer-move (:db down) (pe 420 -30 :t 40))
+          fx2 (ev/pointer-up (:db fx1) (pe 420 -30 :t 50))]
+      (is (= :move (get-in down [:db :drag :type])))
+      (is (nil? (get-in down [:db :sel-menu])) "an open menu closes")
+      (is (= [[40 20] [240 20]] (map (juxt :x :y) (map #(get-in fx2 [:db :objects %]) ["a" "b"]))))
+      (is (= 2 (count (second (first (:tube/send fx1))))) "sent live")
+      (is (= 1 (count (get-in fx2 [:db :history :undo]))))))
+  (testing "nothing to move: locked or only connections; not the right button"
+    (is (nil? (ev/grip-down (-> with-objs (assoc :selection #{"a"}) (assoc-in [:objects "a" :locked?] true)) (pe 0 0))))
+    (is (nil? (ev/grip-down (assoc with-objs :selection #{"c"}
+                                             :objects {"c" {:id "c" :kind :connection :from "a" :to "b"}})
+                            (pe 0 0))))
+    (is (nil? (ev/grip-down (assoc with-objs :selection #{"a"}) (pe 0 0 :button 2))))))
+
 (deftest remote-changes-during-a-drag
   (let [db (:db (ev/pointer-down with-objs (pe 10 10)))
         db (:db (ev/remote-delete db ["a"]))

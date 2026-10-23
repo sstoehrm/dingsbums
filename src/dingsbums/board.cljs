@@ -186,6 +186,17 @@
   (.setPointerCapture (.-target e) (.-pointerId e))
   (dispatch [:pointer/down (pointer e x y)]))
 
+(defn grab!
+  "Hands a pointer pressed outside the board (the selection toolbar's grip) to
+  it: event is dispatched with the board's coordinates, and the pointer's moves
+  and release then reach the board as if pressed on it."
+  [^js e event]
+  (when-let [^js c (.querySelector js/document ".board")]
+    (.preventDefault e)
+    (.setPointerCapture c (.-pointerId e))
+    (let [r (.getBoundingClientRect c)]
+      (dispatch [event (pointer e (- (.-clientX e) (.-left r)) (- (.-clientY e) (.-top r)))]))))
+
 (defn- on-move [^js e {:keys [x y]}] (dispatch [:pointer/move (pointer e x y)]))
 (defn- on-up [^js e {:keys [x y]}] (dispatch [:pointer/up (pointer e x y)]))
 (defn- on-dblclick [^js e {:keys [x y]}] (dispatch [:pointer/dblclick (pointer e x y)]))
