@@ -104,10 +104,13 @@
 (defn- stored-hand? []
   (try (= "1" (js/localStorage.getItem events/hand-storage-key)) (catch :default _ false)))
 
+(defn- stored-name []
+  (try (events/clean-name (js/localStorage.getItem events/name-storage-key)) (catch :default _ nil)))
+
 (defn- on-resize [] (dispatch [:viewport (.-innerWidth js/window) (.-innerHeight js/window)]))
 
 (defn init []
-  (mount! [views/app] (root) (assoc events/initial-db :theme (stored-theme) :hand? (stored-hand?)))
+  (mount! [views/app] (root) (assoc events/initial-db :theme (stored-theme) :hand? (stored-hand?) :name (stored-name)))
   (let [dark (js/window.matchMedia "(prefers-color-scheme: dark)")]
     (.addEventListener dark "change" #(dispatch [:theme/os (.-matches %)]))
     (dispatch [:theme/os (.-matches dark)]))

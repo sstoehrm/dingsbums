@@ -16,6 +16,15 @@
 (def ^:private frame-radius 8)
 (def ^:private sticky-radius 4)
 
+(def user-colors
+  "The colours of the people on a board, by the index the server gives out;
+  dark enough for white text on them."
+  ["#d32f2f" "#1976d2" "#388e3c" "#e65100" "#7b1fa2" "#00838f" "#c2185b" "#5d4037"])
+
+(defn user-color [i] (nth user-colors (mod (or i 0) (count user-colors))))
+
+(defn user-name [user] (or (:name user) "Guest"))
+
 (defonce ^:private measure-ctx (delay (.getContext (js/document.createElement "canvas") "2d")))
 
 (defn measure [s size]
@@ -166,17 +175,54 @@
                    (.setLineDash ctx #js [])))
       nil)))
 
+(defn- peer-selections!
+  "What the others have selected, outlined in their colours outside my own outline."
+  [^js ctx objects peers zoom]
+  (set! (.-lineWidth ctx) (/ 2 zoom))
+  (doseq [{:keys [selection color]} (vals peers)
+          id selection
+          :let [o (get objects id) r (when o (geom/obj-rect objects o))]
+          :when r]
+    (set! (.-strokeStyle ctx) (user-color color))
+    (.strokeRect ctx (- (:x r) (/ 6 zoom)) (- (:y r) (/ 6 zoom)) (+ (:w r) (/ 12 zoom)) (+ (:h r) (/ 12 zoom)))))
+
+(def ^:private pointer-path (delay (js/Path2D. "M0 0l13 8-6 1.5-3 6.5z")))
+
+(defn- peer-cursors!
+  "The others' pointers with their names, in screen pixels at every zoom."
+  [^js ctx cam peers]
+  (set! (.-font ctx) "12px system-ui, sans-serif")
+  (set! (.-textBaseline ctx) "middle")
+  (doseq [{:keys [cursor color] :as user} (vals peers) :when cursor
+          :let [[x y] (geom/world->screen cam cursor) c (user-color color) label (user-name user)]]
+    (.save ctx)
+    (.translate ctx x y)
+    (set! (.-lineWidth ctx) 1.5)
+    (set! (.-strokeStyle ctx) "#ffffff")
+    (set! (.-fillStyle ctx) c)
+    (.stroke ctx @pointer-path)
+    (.fill ctx @pointer-path)
+    (let [w (+ 12 (.-width (.measureText ctx label)))]
+      (.beginPath ctx)
+      (.roundRect ctx 10 16 w 20 4)
+      (.fill ctx)
+      (set! (.-fillStyle ctx) "#ffffff")
+      (.fillText ctx label 16 26))
+    (.restore ctx)))
+
 (defn- draw!
   "One frame. _tick is the image-load counter: naming it makes a loaded image redraw."
-  [^js ctx w h objects cam sel drag editing theme _tick]
+  [^js ctx w h objects cam sel drag editing theme peers _tick]
   (.clearRect ctx 0 0 w h)
   (.save ctx)
   (.scale ctx (:zoom cam) (:zoom cam))
   (.translate ctx (- (:x cam)) (- (:y cam)))
   (doseq [o (geom/draw-order objects)] (object! ctx objects o (:id editing) theme (:zoom cam)))
+  (peer-selections! ctx objects peers (:zoom cam))
   (selection! ctx objects sel (:zoom cam) theme)
   (when drag (drag! ctx objects drag (:zoom cam) theme))
-  (.restore ctx))
+  (.restore ctx)
+  (peer-cursors! ctx cam peers))
 
 (defn- pointer [^js e x y]
   {:sx x :sy y :button (.-button e) :shift? (.-shiftKey e) :ctrl? (or (.-ctrlKey e) (.-metaKey e))
@@ -188,6 +234,7 @@
 
 (defn- on-move [^js e {:keys [x y]}] (dispatch [:pointer/move (pointer e x y)]))
 (defn- on-up [^js e {:keys [x y]}] (dispatch [:pointer/up (pointer e x y)]))
+(defn- on-leave [_ _] (dispatch [:pointer/leave]))
 (defn- on-dblclick [^js e {:keys [x y]}] (dispatch [:pointer/dblclick (pointer e x y)]))
 
 (defn- on-wheel [^js e {:keys [x y]}]
@@ -197,9 +244,9 @@
                        :ctrl? (or (.-ctrlKey e) (.-metaKey e)) :shift? (.-shiftKey e) :sx x :sy y}])))
 
 (defdraw board [] [objects [:objects] cam [:camera] sel [:selection] drag [:drag]
-                   editing [:editing] tick [:img-tick] pref [:theme] dark? [:os-dark?]
+                   editing [:editing] tick [:img-tick] pref [:theme] dark? [:os-dark?] peers [:peers]
                    theme (themes/effective pref dark?)]
   {:attrs {:class "board"}
-   :on-pointerdown on-down :on-pointermove on-move :on-pointerup on-up
+   :on-pointerdown on-down :on-pointermove on-move :on-pointerup on-up :on-pointerleave on-leave
    :on-dblclick on-dblclick :on-wheel on-wheel}
-  (fn [ctx {:keys [w h]}] (draw! ctx w h objects cam sel drag editing theme tick)))
+  (fn [ctx {:keys [w h]}] (draw! ctx w h objects cam sel drag editing theme peers tick)))

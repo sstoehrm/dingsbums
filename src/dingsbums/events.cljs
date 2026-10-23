@@ -16,15 +16,18 @@
   {:route :landing :session nil :join-input "" :error nil :message nil :online? false
    :objects {} :history {:undo [] :redo []} :selection #{} :tool :select :shape-kind :rect
    :camera {:x 0 :y 0 :zoom 1} :drag nil :editing nil :space? false :img-tick 0
-   :viewport [1024 768] :theme nil :os-dark? false :hand? false :loading? false :sel-menu nil})
+   :viewport [1024 768] :theme nil :os-dark? false :hand? false :loading? false :sel-menu nil
+   :name nil :naming nil :you nil :peers {} :cursor-sent ##-Inf})
 
 (def ^:private board-reset
-  (select-keys initial-db [:objects :history :selection :tool :camera :drag :editing :message :online? :loading?]))
+  (select-keys initial-db [:objects :history :selection :tool :camera :drag :editing :message :online? :loading?
+                           :you :peers]))
 
 (def send-interval 33)
 (def hit-px 6)
 (def max-image-chars 15000000)
-(def remote-events #{:op/upsert :op/patch :op/delete :session/snapshot :session/missing})
+(def remote-events #{:op/upsert :op/patch :op/delete :session/snapshot :session/missing
+                     :presence/roster :presence/update :presence/left})
 (def creating-tools #{:text :frame :shape :sticky})
 
 (reg-fx :tube/send (fn [evs] (run! tubes/send! evs)))
@@ -33,6 +36,9 @@
 
 (def theme-storage-key "dingsbums-theme")
 (def hand-storage-key "dingsbums-hand")
+(def name-storage-key "dingsbums-name")
+
+(reg-fx :name/store (fn [n] (try (js/localStorage.setItem name-storage-key n) (catch :default _ nil))))
 
 (reg-fx :hand/store
         (fn [on?]
@@ -51,6 +57,11 @@
             (doseq [k themes/css-keys] (.setProperty style (str "--" (name k)) (get theme k))))))
 
 (defn- with-ops [db ops] (cond-> {:db db} (seq ops) (assoc :tube/send ops)))
+
+(defn- presence-send
+  "fx also telling the others presence update p, when online."
+  [fx p]
+  (cond-> fx (get-in fx [:db :online?]) (update :tube/send (fnil conj []) [:presence/update p])))
 
 (defn- commit [db changes] (let [[db ops] (model/commit db changes)] (with-ops db ops)))
 
@@ -135,8 +146,17 @@
 
 ;; sync
 
-(defn tube-connected [db] {:db (assoc db :online? true) :tube/send [[:session/hello]]})
-(defn tube-disconnected [db] {:db (assoc db :online? false)})
+(defn- selection-ids [db] (vec (sort (:selection db))))
+
+(defn tube-connected
+  "Hello, and who I am and what I have selected (on a reconnect)."
+  [db]
+  (let [p (cond-> {}
+            (:name db) (assoc :name (:name db))
+            (seq (:selection db)) (assoc :selection (selection-ids db)))]
+    {:db (assoc db :online? true) :tube/send (cond-> [[:session/hello]] (seq p) (conj [:presence/update p]))}))
+
+(defn tube-disconnected [db] {:db (assoc db :online? false :peers {})})
 
 (defn snapshot [db objects]
   {:db (prune (assoc db :objects objects :history {:undo [] :redo []} :drag nil :loading? false))})
@@ -144,6 +164,49 @@
 (defn remote-upsert [db objs] {:db (update db :objects ops/upsert objs)})
 (defn remote-patch [db patches] {:db (update db :objects ops/patch patches)})
 (defn remote-delete [db ids] {:db (prune (update db :objects ops/delete ids))})
+
+;; who is here: the server tells me my id and colour and everyone's presence
+
+(defn presence-roster [db you users]
+  (let [{me true others false} (group-by #(= you (:id %)) users)]
+    {:db (assoc db :you (first me) :peers (into {} (map (juxt :id identity)) others))}))
+
+(defn presence-update [db user]
+  (when-not (= (:id user) (get-in db [:you :id])) {:db (assoc-in db [:peers (:id user)] user)}))
+
+(defn presence-left [db id] {:db (update db :peers dissoc id)})
+
+(defn- with-presence
+  "Handler f, telling the others when it changed my selection."
+  [f]
+  (fn [db & args]
+    (let [fx (apply f db args)]
+      (if (and (:db fx) (not= (:selection db) (get-in fx [:db :selection])))
+        (presence-send fx {:selection (selection-ids (:db fx))})
+        fx))))
+
+(defn name-dialog?
+  "Whether to ask for my name: on a board until I gave one, and while renaming."
+  [route name naming]
+  (and (= :board route) (or (nil? name) (some? naming))))
+
+(defn clean-name
+  "s as a name: control characters as spaces, trimmed, at most 32 characters;
+  nil when blank."
+  [s]
+  (let [n (str/trim (str/replace (str s) #"[\x00-\x1f\x7f]" " "))]
+    (when-not (str/blank? n) (subs n 0 (min (count n) ops/max-name-length)))))
+
+(defn name-edit [db] {:db (assoc db :naming (or (:name db) ""))})
+(defn name-input [db s] {:db (assoc db :naming s)})
+
+(defn name-save
+  "Takes the typed name; saved in this browser and shown to the others."
+  [db]
+  (when-let [n (clean-name (:naming db))]
+    (presence-send {:db (assoc db :name n :naming nil) :name/store n} {:name n})))
+
+(defn name-cancel [db] (when (:name db) {:db (assoc db :naming nil)}))
 
 ;; tools, camera, misc
 
@@ -267,8 +330,8 @@
       (with-ops (assoc-in db [:drag :last-sent] t) (model/patch-ops (vals changes)))
       {:db db})))
 
-(defn pointer-move [db {:keys [sx sy t] :as e}]
-  (let [drag (:drag db) p (world db e)]
+(defn- drag-move [db {:keys [sx sy t]} p]
+  (let [drag (:drag db)]
     (case (:type drag)
       :pan (let [[lx ly] (:last drag)]
              {:db (-> db (update :camera geom/pan (- sx lx) (- sy ly)) (assoc-in [:drag :last] [sx sy]))})
@@ -282,6 +345,20 @@
                                   {})
                              t))
       nil)))
+
+(defn- send-cursor
+  "fx (nil: nothing to do) also telling the others my pointer's board position
+  p, at most every send-interval."
+  [fx db p t]
+  (let [db (:db fx db)]
+    (if (and (:online? db) (>= (- t (:cursor-sent db)) send-interval))
+      (presence-send (assoc fx :db (assoc db :cursor-sent t)) {:cursor p})
+      fx)))
+
+(defn pointer-move [db {:keys [t] :as e}]
+  (let [p (world db e)] (send-cursor (drag-move db e p) db p t)))
+
+(defn pointer-leave [db] (when (:online? db) (presence-send {:db db} {:cursor nil})))
 
 (defn- create-object [db {:keys [kind start]} end]
   (let [r (geom/rect-from-points start end)
@@ -540,6 +617,13 @@
                 :op/delete remote-delete
                 :tube/connected tube-connected
                 :tube/disconnected tube-disconnected
+                :presence/roster presence-roster
+                :presence/update presence-update
+                :presence/left presence-left
+                :name/edit name-edit
+                :name/input name-input
+                :name/save name-save
+                :name/cancel name-cancel
                 :landing/input landing-input
                 :landing/create landing-create
                 :landing/join landing-join
@@ -558,6 +642,7 @@
                 :pointer/down pointer-down
                 :pointer/move pointer-move
                 :pointer/up pointer-up
+                :pointer/leave pointer-leave
                 :pointer/dblclick dblclick
                 :edit/start edit-start
                 :edit/input edit-input
@@ -580,4 +665,4 @@
                 :import/file import-file
                 :import/done import-done
                 :import/failed import-failed}]
-  (reg-event id f))
+  (reg-event id (with-presence f)))

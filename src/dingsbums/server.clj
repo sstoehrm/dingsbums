@@ -40,7 +40,7 @@
 (defn- send-to!
   "Sends msg to every client of sid except `except`."
   [sid except msg]
-  (doseq [ch (get-in @s/sessions [sid :clients]) :when (not= ch except)]
+  (doseq [ch (keys (get-in @s/sessions [sid :clients])) :when (not= ch except)]
     (http/send! ch msg)))
 
 (defn- read-event [msg]
@@ -49,10 +49,19 @@
 (defn- receive! [sid ch msg]
   (let [ev (read-event msg)]
     (cond
+      ;; the board, then who is here (me included); the others hear of me
       (= ev [:session/hello])
-      (http/send! ch (pr-str (if-let [sess (get @s/sessions sid)]
-                               [:session/snapshot (:objects sess)]
-                               [:session/missing])))
+      (if-let [sess (get @s/sessions sid)]
+        (let [me (get-in sess [:clients ch])]
+          (http/send! ch (pr-str [:session/snapshot (:objects sess)]))
+          (when me
+            (http/send! ch (pr-str [:presence/roster (:id me) (vec (vals (:clients sess)))]))
+            (send-to! sid ch (pr-str [:presence/update me]))))
+        (http/send! ch (pr-str [:session/missing])))
+
+      (and (vector? ev) (= 2 (count ev)) (= :presence/update (first ev)) (ops/presence? (second ev)))
+      (when-let [me (get-in (swap! s/sessions s/set-presence sid ch (second ev)) [sid :clients ch])]
+        (send-to! sid ch (pr-str [:presence/update me])))
 
       (ops/op? ev)
       (let [[op arg] ev]
@@ -62,11 +71,14 @@
 (defn- ws [req sid]
   (http/as-channel req
     {:on-open (fn [ch]
-                (when-not (contains? (swap! s/sessions s/join sid ch) sid)
+                (when-not (contains? (swap! s/sessions s/join sid ch (s/new-id)) sid)
                   (http/send! ch (pr-str [:session/missing]))
                   (http/close ch)))
      :on-receive (fn [ch msg] (receive! sid ch msg))
-     :on-close (fn [ch _] (swap! s/sessions s/leave sid ch (now)))}))
+     :on-close (fn [ch _]
+                 (let [me (get-in @s/sessions [sid :clients ch])]
+                   (swap! s/sessions s/leave sid ch (now))
+                   (when me (send-to! sid nil (pr-str [:presence/left (:id me)])))))}))
 
 (defn- import! [sid ^java.io.InputStream body]
   (if-let [objects (try (tar/import-session (if body (.readAllBytes body) (byte-array 0)))
