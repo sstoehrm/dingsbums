@@ -40,13 +40,30 @@
     (is (= [:moved] (mapv (comp :what second) (log/entries objs lg [:op/patch [{:id "a" :x 6}]] "Ada" 61000)))
         "a minute later: again")
     (is (= ["Bo"] (mapv (comp :by second) (log/entries objs lg [:op/patch [{:id "a" :x 6}]] "Bo" 2000)))
-        "someone else: again")))
+        "someone else: again")
+    (testing "the last entry dated later (the clock stepped back)"
+      (let [es (log/entries (assoc-in objs ["a" :x] 5) lg [:op/patch [{:id "a" :x 6}]] "Ada" 500)]
+        (is (= [:moved] (mapv (comp :what second) es)) "again")
+        (is (= [] (log/entries (assoc-in objs ["a" :x] 6) (log/add lg es) [:op/patch [{:id "a" :x 7}]] "Ada" 800))
+            "and the rest of that drag is one entry")))))
 
 (deftest add-keeps-the-newest
   (let [lg (reduce (fn [lg i] (log/add lg [["a" {:at i :by "Ada" :what :moved}]])) {} (range 60))]
     (is (= log/cap (count (get lg "a"))))
     (is (= 59 (:at (peek (get lg "a")))))
     (is (instance? clojure.lang.PersistentVector (get lg "a")) "a fresh vector: a subvec would keep all of them")))
+
+(deftest prune-keeps-the-most-recently-deleted
+  (let [gone (fn [i] [(str "d" i) [{:at i :by "Ada" :what :created} {:at (+ i 1000) :by "Ada" :what :deleted}]])
+        lg (into {"a" [{:at 1 :by "Ada" :what :created}]} (map gone) (range (inc log/deleted-kept)))
+        pruned (log/prune lg {"a" a})]
+    (is (contains? pruned "a") "live objects keep theirs")
+    (is (= (inc log/deleted-kept) (count pruned)))
+    (is (not (contains? pruned "d0")) "the oldest deletion goes")
+    (is (contains? pruned (str "d" log/deleted-kept)))
+    (is (= [:created] (whats {} pruned [:op/upsert [(assoc a :id "d0")]])) "its undo reads as created")
+    (is (= [:restored] (whats {} pruned [:op/upsert [(assoc a :id "d1")]])))
+    (is (identical? pruned (log/prune pruned {"a" a})) "none to drop: the log as it is")))
 
 (deftest read-keeps-only-valid-entries-of-objects
   (let [ok {:at 5 :by "Ada" :what :created}]

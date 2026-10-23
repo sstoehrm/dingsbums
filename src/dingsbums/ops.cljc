@@ -1,5 +1,6 @@
 (ns dingsbums.ops
-  "Object ops shared by server and client. objects is a map {id obj}.")
+  "Object ops shared by server and client. objects is a map {id obj}."
+  (:require [clojure.string :as str]))
 
 (def ^:private field-ok
   "Every key an object may have, with the check its value must pass."
@@ -60,15 +61,25 @@
 
 (def max-name-length 32)
 (def default-name "The name of someone who gave none." "Guest")
-(def name-control-chars "What a name must not contain." #"[\x00-\x1f\x7f]")
+(def ^:private name-junk
+  "Control characters and surrogates. A whole pair matches first, to be kept: JS
+  sees its halves (no lookbehind, old Safari can't parse it), Java one char."
+  #"[\uD800-\uDBFF][\uDC00-\uDFFF]|[\x00-\x1f\x7f\uD800-\uDFFF]")
 (def max-selection 10000)
 
 (defn- finite? [x] (and (number? x) #?(:clj (Double/isFinite (double x)) :cljs (js/isFinite x))))
 
-(defn valid-name?
-  "s is a user's name: 1–32 characters, no control characters."
+(defn blank-junk
+  "s with what a name must not contain, control characters and half a surrogate
+  pair, as spaces."
   [s]
-  (and (string? s) (<= 1 (count s) max-name-length) (not (re-find name-control-chars s))))
+  (str/replace s name-junk #(if (= 2 (count %)) % " ")))
+
+(defn valid-name?
+  "s is a user's name: 1–32 UTF-16 code units (an emoji is two), no control
+  characters or half surrogate pairs."
+  [s]
+  (and (string? s) (<= 1 (count s) max-name-length) (= s (blank-junk s))))
 
 (def ^:private presence-ok
   "What a client may say about itself, with the check each value must pass. Its
@@ -78,8 +89,8 @@
    :selection #(and (vector? %) (<= (count %) max-selection) (every? (:id field-ok) %))})
 
 (defn presence?
-  "p is a well-formed presence update: some of :name (1–32 characters, no
-  control characters), :cursor ([x y] in board coordinates, nil: off the board)
-  and :selection (the ids the user has selected, at most 10000)."
+  "p is a well-formed presence update: some of :name (1–32 UTF-16 code
+  units, no control characters or half surrogate pairs), :cursor ([x y] in board
+  coordinates, nil: off the board) and :selection (the ids the user has selected, at most 10000)."
   [p]
   (and (map? p) (seq p) (every? (fn [[k v]] (when-let [ok (presence-ok k)] (ok v))) p)))

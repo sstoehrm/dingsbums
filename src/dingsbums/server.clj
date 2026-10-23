@@ -64,7 +64,7 @@
         (locking l
           (let [{:keys [objects log clients]} (get (swap! s/sessions s/greet sid ch) sid)]
             (http/send! ch (pr-str [:session/snapshot objects]))
-            ;; deleted objects' too: an undo brings one back with its history
+            ;; the most recently deleted objects' too: an undo brings one back with its history
             (http/send! ch (pr-str [:log/all log]))
             (when-let [me (get clients ch)]
               (http/send! ch (pr-str [:presence/roster (:id me) (vec (vals clients))]))

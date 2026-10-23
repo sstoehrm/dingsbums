@@ -23,7 +23,7 @@
 
 (def ^:private board-reset
   (select-keys initial-db [:objects :history :selection :tool :camera :drag :editing :message :online? :loading?
-                           :naming :you :peers :log]))
+                           :naming :you :peers :log :sel-menu :cursor-sent :cursor-pending]))
 
 (def send-interval 33)
 (def hit-px 6)
@@ -204,10 +204,11 @@
 
 (defn log-lines
   "The log of the objects ids, newest first, as [{:at :by :what :n}]: a change
-  made to several of them at once (a group moved) is one line, :n of them."
+  made to several of them at once (a group moved) is one line, :n of them.
+  Alike entries of one ms sort together, so no two lines share :at :by :what."
   [lg ids]
   (->> (mapcat #(get lg %) (set ids))
-       (sort-by :at >)
+       (sort-by (juxt (comp - :at) :by :what))
        (reduce (fn [lines {:keys [at by what]}]
                  (let [l (peek lines)]
                    (if (and l (= by (:by l)) (= what (:what l)) (< (- (:last l) at) together-ms))
@@ -247,11 +248,12 @@
   (and (= :board route) (or (nil? name) (some? naming))))
 
 (defn clean-name
-  "s as a name: control characters as spaces, trimmed, at most 32 characters;
-  nil when blank."
+  "s as a name: control characters as spaces, trimmed, at most 32 UTF-16 code
+  units, never ending in half an emoji; nil when blank."
   [s]
-  (let [n (str/trim (str/replace (str s) ops/name-control-chars " "))]
-    (when-not (str/blank? n) (subs n 0 (min (count n) ops/max-name-length)))))
+  (let [n (str/trim (ops/blank-junk (str s)))]
+    (when-not (str/blank? n)
+      (str/trimr (ops/blank-junk (subs n 0 (min (count n) ops/max-name-length)))))))
 
 (defn name-edit [db] {:db (assoc db :naming (or (:name db) ""))})
 (defn name-input [db s] {:db (assoc db :naming s)})
