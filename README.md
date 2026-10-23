@@ -38,6 +38,8 @@ can't think of right now. That's what a whiteboard is full of.
 - See who is here: everyone's name in the top left, their pointers with their
   names on the board, and what they have selected outlined in their colour.
   You give your name once; this browser remembers it (click it to change it).
+- History: select something and open History to see who created, moved,
+  edited, coloured, locked or deleted it, and when. It travels with an export.
 - Frames, sticky notes, text, shapes (circle, rectangle, star, arrow) and
   connections between them.
 - Dots and boxes that measure them, for dot voting: a counting box shows how
@@ -155,6 +157,9 @@ holds whatever its participants put on it, only in the server's memory, until
 the session ends (15 minutes after the last participant leaves). The name you
 give, your pointer position and your selection go to the server and to the
 others on the board while you are connected, and are dropped when you leave.
+The board also keeps, per element, who changed it and when (the name and the
+time of each change); that history lasts as long as the board and goes into an
+export, so whoever gets an exported file sees those names and times too.
 Your browser keeps your name, theme and hand-mode choice in its local
 storage; nothing else is stored. Whoever runs the server, and any reverse proxy in front of it, can log
 visitors' IP addresses; that is their setup, not dingsbums's.

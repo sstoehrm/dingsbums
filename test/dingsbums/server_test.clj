@@ -3,6 +3,7 @@
             [babashka.http-client.websocket :as ws]
             [cheshire.core :as json]
             [clojure.edn :as edn]
+            [clojure.string :as str]
             [clojure.test :refer [deftest is use-fixtures]]
             [dingsbums.server :as server]
             [dingsbums.sessions :as s]
@@ -24,10 +25,13 @@
 
 (defn- create! [] (:id (json/parse-string (:body (req :post "/api/sessions")) true)))
 
-(defn- connect [sid]
+(defn- connect
+  "A client of session sid; the log's messages are dropped unless log? is given."
+  [sid & [log?]]
   (let [q (LinkedBlockingQueue.)
         c (ws/websocket {:uri (str "ws://" *base* "/ws?session=" sid)
-                         :on-message (fn [_ data _] (.put q (str data)))
+                         :on-message (fn [_ data _]
+                                       (let [s (str data)] (when (or log? (not (str/starts-with? s "[:log/"))) (.put q s))))
                          :on-close (fn [_ _ _] (.put q "closed"))})]
     {:conn c :q q}))
 
@@ -48,7 +52,7 @@
     (let [m (recv c)]
       (case (first m)
         :session/snapshot (recur m)
-        :presence/update (recur snap)
+        (:presence/update :log/all :log/add) (recur snap)
         snap))))
 
 (defn- hello-both!
@@ -165,6 +169,32 @@
         (ws/close! (:conn c2))
         (is (= [:presence/left you2] (recv c1)))))))
 
+(deftest changes-are-logged-with-name-and-time
+  (let [sid (create!) c1 (connect sid :log) c2 (connect sid :log)]
+    (send! c1 [:presence/update {:name "Ada"}])
+    (hello-both! c1 c2)
+    (send! c1 [:op/upsert [a]])
+    (is (= [:op/upsert [a]] (recv c2)))
+    (let [[ev [[id {:keys [at by what]}]]] (recv c2)]
+      (is (= [:log/add "a" "Ada" :created] [ev id by what]) "everyone gets the entry")
+      (is (< (- (System/currentTimeMillis) 5000) at (inc (System/currentTimeMillis))) "the server's time"))
+    (is (= :log/add (first (recv c1))) "the sender too: the server's name and time")
+    (send! c2 [:op/patch [{:id "a" :x 5}]])
+    (recv c1)
+    (is (= [:log/add [["a" "Guest" :moved]]] (let [[ev es] (recv c1)] [ev (mapv (fn [[id e]] [id (:by e) (:what e)]) es)]))
+        "no name yet: a guest")
+    (send! c2 [:op/patch [{:id "a" :x 6}]])
+    (recv c1)
+    (is (quiet? c1) "a repeat within a minute is not logged again")
+    (let [c3 (connect sid :log)]
+      (send! c3 [:session/hello])
+      (recv c3)
+      (is (= [:log/all {"a" [["Ada" :created] ["Guest" :moved]]}]
+             (let [[ev lg] (recv c3)] [ev (update-vals lg #(mapv (juxt :by :what) %))]))
+          "a newcomer gets the log after the snapshot"))
+    (let [res (req :get (str "/api/sessions/" sid "/export") {:as :bytes})]
+      (is (= [:created :moved] (mapv :what (get-in (tar/import-session (:body res)) [:log "a"]))) "exported with the board"))))
+
 (deftest clients-and-idle-clock
   (let [sid (create!) c (connect sid)]
     (hello! c)
@@ -182,7 +212,7 @@
     (let [res (req :get (str "/api/sessions/" sid "/export") {:as :bytes})]
       (is (= 200 (:status res)))
       (is (= "application/x-tar" (get-in res [:headers "content-type"])))
-      (is (= {"a" a} (tar/import-session (:body res))))
+      (is (= {"a" a} (:objects (tar/import-session (:body res)))))
       (swap! s/sessions s/replace-objects sid {})
       (is (= 204 (:status (req :post (str "/api/sessions/" sid "/import") {:body (:body res)}))))
       (is (= {"a" a} (get-in @s/sessions [sid :objects])))

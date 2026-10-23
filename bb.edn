@@ -11,7 +11,7 @@
 
   test {:doc "Run the backend tests"
         :requires ([clojure.test :as t])
-        :task (let [nss '[dingsbums.ops-test dingsbums.sessions-test dingsbums.tar-test dingsbums.server-test dingsbums.cli-test]]
+        :task (let [nss '[dingsbums.ops-test dingsbums.log-test dingsbums.sessions-test dingsbums.tar-test dingsbums.server-test dingsbums.cli-test]]
                 (apply require nss)
                 (let [{:keys [fail error]} (apply t/run-tests nss)]
                   (System/exit (if (zero? (+ fail error)) 0 1))))}
@@ -31,7 +31,7 @@
                (fs/delete-tree stage)
                (fs/create-dirs src)
                ;; the server side only; the frontend ships compiled
-               (doseq [f ["main.clj" "cli.clj" "server.clj" "sessions.clj" "tar.clj" "ops.cljc"]]
+               (doseq [f ["main.clj" "cli.clj" "server.clj" "sessions.clj" "tar.clj" "ops.cljc" "log.cljc"]]
                  (fs/copy (fs/path "src" "dingsbums" f) (fs/path src f)))
                (fs/create-dirs (fs/path res "public" "js"))
                (fs/copy "public/index.html" (fs/path res "public" "index.html"))

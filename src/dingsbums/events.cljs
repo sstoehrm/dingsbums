@@ -8,6 +8,7 @@
             [hammer.http]
             [hammer.tubes :as tubes]
             [dingsbums.geom :as geom]
+            [dingsbums.log :as log]
             [dingsbums.model :as model]
             [dingsbums.ops :as ops]
             [dingsbums.themes :as themes]))
@@ -17,17 +18,18 @@
    :objects {} :history {:undo [] :redo []} :selection #{} :tool :select :shape-kind :rect
    :camera {:x 0 :y 0 :zoom 1} :drag nil :editing nil :space? false :img-tick 0
    :viewport [1024 768] :theme nil :os-dark? false :hand? false :loading? false :sel-menu nil
-   :name nil :naming nil :you nil :peers {} :cursor-sent ##-Inf :cursor-pending nil})
+   :name nil :naming nil :you nil :peers {} :cursor-sent ##-Inf :cursor-pending nil
+   :log {}})
 
 (def ^:private board-reset
   (select-keys initial-db [:objects :history :selection :tool :camera :drag :editing :message :online? :loading?
-                           :naming :you :peers]))
+                           :naming :you :peers :log]))
 
 (def send-interval 33)
 (def hit-px 6)
 (def max-image-chars 15000000)
 (def remote-events #{:op/upsert :op/patch :op/delete :session/snapshot :session/missing
-                     :presence/roster :presence/update :presence/left})
+                     :presence/roster :presence/update :presence/left :log/all :log/add})
 (def creating-tools #{:text :frame :shape :sticky :dot :counter :scale-x :scale-xy})
 
 (reg-fx :tube/send (fn [evs] (run! tubes/send! evs)))
@@ -182,6 +184,39 @@
       {:db (update-in db [:peers id] merge user)})))
 
 (defn presence-left [db id] {:db (update db :peers dissoc id)})
+
+(defn log-all [db lg] {:db (assoc db :log lg)})
+(defn log-add [db entries] {:db (update db :log log/add entries)})
+
+(def ^:private log-labels
+  {:created "created" :restored "restored" :edited "changed the text" :filled "changed the fill"
+   :coloured "changed the text colour" :locked "locked" :unlocked "unlocked" :grouped "grouped"
+   :ungrouped "ungrouped" :reordered "changed the order" :moved "moved" :resized "resized"
+   :changed "changed" :deleted "deleted"})
+
+(defn log-label [what] (log-labels what (name what)))
+
+(defn log-lines
+  "The log of the objects ids, newest first, as [{:at :by :what :n}]: a change
+  made to several of them at once (a group moved) is one line, :n of them."
+  [lg ids]
+  (->> (mapcat #(get lg %) ids)
+       (group-by (juxt :at :by :what))
+       (map (fn [[[at by what] es]] {:at at :by by :what what :n (count es)}))
+       (sort-by :at >)
+       vec))
+
+(def ^:private months ["Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"])
+
+(defn format-time
+  "ms at in local time: HH:MM on the day of now, else with the day."
+  [at now]
+  (let [d (js/Date. at)
+        two #(.padStart (str %) 2 "0")
+        hm (str (two (.getHours d)) ":" (two (.getMinutes d)))]
+    (if (= (.toDateString d) (.toDateString (js/Date. now)))
+      hm
+      (str (.getDate d) " " (months (.getMonth d)) " " hm))))
 
 (defn- with-presence
   "Handler f, telling the others when it changed my selection."
@@ -655,6 +690,8 @@
                 :presence/roster presence-roster
                 :presence/update presence-update
                 :presence/left presence-left
+                :log/all log-all
+                :log/add log-add
                 :name/edit name-edit
                 :name/input name-input
                 :name/save name-save

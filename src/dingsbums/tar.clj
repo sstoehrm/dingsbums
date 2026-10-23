@@ -1,9 +1,11 @@
 (ns dingsbums.tar
   "Minimal POSIX ustar (regular files only) and the session export format:
-  session.edn ({:version 1 :objects {id obj}}, image :src replaced by a path)
-  plus images/<id>.<ext>."
+  session.edn ({:version 1 :objects {id obj} :log log}, image :src replaced by a
+  path) plus images/<id>.<ext>. :log (see dingsbums.log) came later: an export
+  without it imports with an empty log."
   (:require [clojure.edn :as edn]
             [clojure.string :as str]
+            [dingsbums.log :as log]
             [dingsbums.ops :as ops])
   (:import [java.io ByteArrayOutputStream]
            [java.nio.charset StandardCharsets]
@@ -94,16 +96,19 @@
          (catch IllegalArgumentException _ nil))))
 
 (defn export-session
-  "Tar bytes of a session's objects: session.edn plus one file per image."
-  ^bytes [objects]
-  (let [images (keep (fn [[id o]]
-                       (when-let [[mime data] (and (= :image (:kind o)) (data-url (:src o)))]
-                         [id (str "images/" id "." (mime->ext mime "bin")) data]))
-                     objects)
-        objects (reduce (fn [m [id path _]] (assoc-in m [id :src] path)) objects images)]
-    (write-tar (into [["session.edn" (utf8 (pr-str {:version 1 :objects objects}))]]
-                     (map (fn [[_ path data]] [path data]))
-                     images))))
+  "Tar bytes of a session's objects and the log of those: session.edn plus one
+  file per image."
+  (^bytes [objects] (export-session objects {}))
+  (^bytes [objects lg]
+   (let [images (keep (fn [[id o]]
+                        (when-let [[mime data] (and (= :image (:kind o)) (data-url (:src o)))]
+                          [id (str "images/" id "." (mime->ext mime "bin")) data]))
+                      objects)
+         lg (select-keys lg (keys objects))
+         objects (reduce (fn [m [id path _]] (assoc-in m [id :src] path)) objects images)]
+     (write-tar (into [["session.edn" (utf8 (pr-str {:version 1 :objects objects :log lg}))]]
+                      (map (fn [[_ path data]] [path data]))
+                      images)))))
 
 (defn- inline-image [o files]
   (if-let [^bytes data (and (= :image (:kind o)) (string? (:src o)) (get files (:src o)))]
@@ -113,7 +118,8 @@
     o))
 
 (defn import-session
-  "The objects of an exported session; ex-info when the bytes aren't one."
+  "{:objects :log} of an exported session, invalid objects and log entries
+  dropped; ex-info when the bytes aren't one."
   [^bytes buf]
   (let [files (read-tar buf)
         ^bytes edn-bytes (or (get files "session.edn") (throw (ex-info "no session.edn" {})))
@@ -121,5 +127,6 @@
                   (catch Exception e (throw (ex-info "unreadable session.edn" {} e))))
         objects (when (map? data) (:objects data))]
     (when-not (map? objects) (throw (ex-info "session.edn has no :objects map" {})))
-    (into {} (comp (map val) (filter ops/valid-object?) (map (fn [o] [(:id o) (inline-image o files)])))
-          objects)))
+    (let [objects (into {} (comp (map val) (filter ops/valid-object?) (map (fn [o] [(:id o) (inline-image o files)])))
+                        objects)]
+      {:objects objects :log (log/read (:log data) objects)})))
