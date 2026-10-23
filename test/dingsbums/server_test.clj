@@ -273,3 +273,11 @@
     (is (= 400 (:status (req :post (str "/api/sessions/" sid "/import") {:body "not a tar"}))))
     (is (= {"a" a} (get-in @s/sessions [sid :objects])) "session untouched")
     (is (= 404 (:status (req :post "/api/sessions/nope/import" {:body "x"}))))))
+
+(deftest import-into-a-session-gone-meanwhile
+  (let [sid (create!)
+        tar (tar/export-session {"a" a} {})
+        real-import tar/import-session]
+    (with-redefs [tar/import-session (fn [bs] (swap! s/sessions dissoc sid) (real-import bs))]
+      (is (= 404 (:status (req :post (str "/api/sessions/" sid "/import") {:body tar})))
+          "not told it worked"))))

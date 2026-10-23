@@ -83,11 +83,12 @@
       ;; the op to the others, then what it did to everyone: the sender
       ;; learns the server's name and time for it too
       (ops/op? ev)
-      (locking l
-        (let [by (or (get-in @s/sessions [sid :clients ch :name]) ops/default-name)
-              entries (get-in (swap! s/sessions s/apply-op sid ev by (now)) [sid :logged])]
-          (send-to! sid ch (pr-str ev))
-          (when (seq entries) (send-to! sid nil (pr-str [:log/add entries]))))))))
+      (let [msg (pr-str ev)
+            by (or (get-in @s/sessions [sid :clients ch :name]) ops/default-name)]
+        (locking l
+          (let [entries (get-in (swap! s/sessions s/apply-op sid ev by (now)) [sid :logged])]
+            (send-to! sid ch msg)
+            (when (seq entries) (send-to! sid nil (pr-str [:log/add entries])))))))))
 
 (defn- ws [req sid]
   (http/as-channel req
@@ -106,12 +107,14 @@
 (defn- import! [sid ^java.io.InputStream body]
   (if-let [{:keys [objects log]} (try (tar/import-session (if body (.readAllBytes body) (byte-array 0)))
                                      (catch Exception _ nil))]
-    (do (when-let [l (lock-of sid)]
-          (locking l
+    (if-let [l (lock-of sid)]
+      (do (locking l
             (swap! s/sessions s/replace-objects sid objects log)
             (send-to! sid nil (pr-str [:session/snapshot objects]))
-            (send-to! sid nil (pr-str [:log/all log]))))
-        {:status 204})
+            (send-to! sid nil (pr-str [:log/all log])))
+          {:status 204})
+      ;; gone while the body came in
+      {:status 404 :body "no such session"})
     {:status 400 :body "not a dingsbums export"}))
 
 (defn- query-param [req k]
