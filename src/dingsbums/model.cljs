@@ -1,7 +1,8 @@
 (ns dingsbums.model
   "Pure board model: constructors, groups, locks and the undo history. A change
   set is {id obj-or-nil}; nil means the object is removed. A history entry is
-  {:before changes :after changes} over the same ids."
+  {:before changes :after changes} over the same ids; an arrow-key move also
+  carries :nudge? true, so a held key can extend it."
   (:require [clojure.string :as str]
             [dingsbums.geom :as geom]
             [dingsbums.ops :as ops]))
