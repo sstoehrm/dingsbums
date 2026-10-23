@@ -122,6 +122,8 @@
     (is (= :landing (get-in fx [:db :route])))
     (is (= {} (get-in fx [:db :objects])))
     (is (contains? fx :hammer.tubes/destroy)))
+  (is (nil? (get-in (ev/route-changed (assoc with-objs :sel-menu {:menu :layer :for #{"a"}}) "s2") [:db :sel-menu]))
+      "leaving closes an open menu")
   (is (false? (get-in (ev/route-changed (assoc board :loading? true) "") [:db :loading?])) "left while loading")
   (let [fx (ev/route-changed ev/initial-db " abc ")]
     (is (= [:checking "abc"] ((juxt :route :session) (:db fx))))
@@ -498,6 +500,9 @@
             (is (= [[:presence/update {:cursor [109 10]}]] (:tube/send fx6)) "the latest position")
             (is (nil? (ev/cursor-flush (:db fx6) 200)) "nothing left")
             (is (nil? (ev/cursor-flush (:db (ev/pointer-leave (:db fx5))) 193)) "left the board meanwhile")
+            (let [b (assoc (:db (ev/route-changed (:db fx5) "s2")) :route :board :online? true)]
+              (is (nil? (:tube/send (ev/cursor-flush b 193))) "nor to the next board's peers")
+              (is (= ##-Inf (:cursor-sent b)) "and the throttle starts over"))
             (is (nil? (:tube/send (ev/pointer-move (:db fx6) (pe 20 20 :t 200)))) "the flush counts as a send")
             (is (some? (:tube/send (ev/pointer-move (:db fx6) (pe 20 20 :t 226)))))))))
     (is (nil? (ev/pointer-move with-objs (pe 10 20 :t 100))) "offline: nothing")

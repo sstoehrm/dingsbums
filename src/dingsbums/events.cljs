@@ -23,7 +23,7 @@
 
 (def ^:private board-reset
   (select-keys initial-db [:objects :history :selection :tool :camera :drag :editing :message :online? :loading?
-                           :naming :you :peers :log]))
+                           :naming :you :peers :log :sel-menu :cursor-sent :cursor-pending]))
 
 (def send-interval 33)
 (def hit-px 6)
