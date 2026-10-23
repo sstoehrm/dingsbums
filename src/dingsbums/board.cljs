@@ -242,7 +242,7 @@
     (.strokeRect ctx (- (:x r) (/ 3 zoom)) (- (:y r) (/ 3 zoom)) (+ (:w r) (/ 6 zoom)) (+ (:h r) (/ 6 zoom))))
   (.setLineDash ctx #js [])
   (let [o (when (= 1 (count sel)) (get objects (first sel)))]
-    (when (and o (not (:locked? o)) (not= :connection (:kind o)))
+    (when (model/resizable? o)
       (set! (.-fillStyle ctx) (:panel theme))
       (set! (.-strokeStyle ctx) (:accent theme))
       (let [s (/ geom/handle-px zoom)]

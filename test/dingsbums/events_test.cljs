@@ -209,7 +209,10 @@
   (testing "corner handle resizes the single selected object"
     (let [fx (drag (assoc with-objs :selection #{"a"}) [100 100] [150 120])]
       (is (= {:x 0 :y 0 :w 150 :h 120} (select-keys (get-in fx [:db :objects "a"]) [:x :y :w :h])))
-      (is (= 1 (count (get-in fx [:db :history :undo])))))))
+      (is (= 1 (count (get-in fx [:db :history :undo]))))))
+  (testing "a dot has no handles: dots in a vote stay alike"
+    (let [db (assoc board :objects {"d" {:id "d" :kind :dot :x 0 :y 0 :w 20 :h 20}} :selection #{"d"})]
+      (is (= [20 20] ((juxt :w :h) (get-in (drag db [20 20] [60 60]) [:db :objects "d"])))))))
 
 (deftest grip-moving
   (testing "the toolbar's grip moves the selection from wherever it is grabbed, zoomed out too"
@@ -489,12 +492,14 @@
         (testing "a throttled position still goes out a moment later"
           (let [fx4 (ev/pointer-move (:db fx3) (pe 16 20 :t 150))
                 fx5 (ev/pointer-move (:db fx4) (pe 18 20 :t 160))
-                fx6 (ev/cursor-flush (:db fx5))]
+                fx6 (ev/cursor-flush (:db fx5) 193)]
             (is (= ev/send-interval (:cursor/flush-later fx4)))
             (is (nil? (:cursor/flush-later fx5)) "one flush at a time")
             (is (= [[:presence/update {:cursor [109 10]}]] (:tube/send fx6)) "the latest position")
-            (is (nil? (ev/cursor-flush (:db fx6))) "nothing left")
-            (is (nil? (ev/cursor-flush (:db (ev/pointer-leave (:db fx5))))) "left the board meanwhile")))))
+            (is (nil? (ev/cursor-flush (:db fx6) 200)) "nothing left")
+            (is (nil? (ev/cursor-flush (:db (ev/pointer-leave (:db fx5))) 193)) "left the board meanwhile")
+            (is (nil? (:tube/send (ev/pointer-move (:db fx6) (pe 20 20 :t 200)))) "the flush counts as a send")
+            (is (some? (:tube/send (ev/pointer-move (:db fx6) (pe 20 20 :t 226)))))))))
     (is (nil? (ev/pointer-move with-objs (pe 10 20 :t 100))) "offline: nothing")
     (is (= [[:presence/update {:cursor nil}]] (:tube/send (ev/pointer-leave online))) "off the board")
     (is (nil? (ev/pointer-leave with-objs)))

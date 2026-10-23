@@ -34,7 +34,8 @@
 
 (reg-fx :tube/send (fn [evs] (run! tubes/send! evs)))
 (reg-fx :set-hash (fn [h] (set! (.-hash js/location) h)))
-(reg-fx :cursor/flush-later (fn [ms] (js/setTimeout #(dispatch [:cursor/flush]) ms)))
+;; the time on the clock pointer events' timeStamp uses
+(reg-fx :cursor/flush-later (fn [ms] (js/setTimeout #(dispatch [:cursor/flush (js/performance.now)]) ms)))
 (reg-fx :clipboard/write (fn [s] (some-> js/navigator .-clipboard (.writeText s) (.catch (fn [_] nil)))))
 
 (def theme-storage-key "dingsbums-theme")
@@ -351,11 +352,11 @@
     [db []]))
 
 (defn- resize-target
-  "[obj corner] when p is on a handle of the single selected, unlocked, non-connection object."
+  "[obj corner] when p is on a handle of the single selected object, if resizable."
   [db p]
   (let [sel (:selection db)
         o (when (= 1 (count sel)) (get-in db [:objects (first sel)]))]
-    (when (and o (not (:locked? o)) (not= :connection (:kind o)))
+    (when (model/resizable? o)
       (when-let [k (geom/handle-at o p (tol db geom/handle-px))] [o k]))))
 
 (defn- press [db {:keys [sx sy button shift? ctrl? t]} p]
@@ -432,10 +433,10 @@
               (nil? (:cursor-pending db)) (assoc :cursor/flush-later send-interval)))))
 
 (defn cursor-flush
-  "Sends the pointer position the throttle held back, if any."
-  [db]
+  "Sends the pointer position the throttle held back, if any, at t."
+  [db t]
   (when-let [p (:cursor-pending db)]
-    (presence-send {:db (assoc db :cursor-pending nil)} {:cursor p})))
+    (presence-send {:db (assoc db :cursor-sent t :cursor-pending nil)} {:cursor p})))
 
 (defn pointer-move [db {:keys [t] :as e}]
   (let [p (world db e)] (send-cursor (drag-move db e p) db p t)))
@@ -445,8 +446,8 @@
 (defn- create-object [db {:keys [kind start]} end]
   (let [r (geom/rect-from-points start end)
         [dw dh] (model/default-size kind)
-        ;; a dot is always placed like a click: dots in a vote stay alike
-        rect (if (or (= kind :dot) (and (< (:w r) 5) (< (:h r) 5)))
+        ;; a fixed-size kind (a dot) is always placed like a click
+        rect (if (or (model/fixed-size-kinds kind) (and (< (:w r) 5) (< (:h r) 5)))
                {:x (- (first start) (/ dw 2)) :y (- (second start) (/ dh 2)) :w dw :h dh}
                (-> r (update :w max geom/min-size) (update :h max geom/min-size)))
         o (model/make (:objects db) kind rect (when (= kind :shape) {:shape (:shape-kind db)}))]
