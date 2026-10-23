@@ -83,6 +83,10 @@
     (.fill ctx)))
 
 (def ^:private readout-size 24)
+(def ^:private readout-gap 8)
+(def readout-room
+  "World height a measuring box's number takes above or below it."
+  (+ readout-gap readout-size))
 (def ^:private tick-size 12)
 
 (defn- ticks!
@@ -120,8 +124,8 @@
 (defn- average!
   "The average position of a scale's dots: a line across a one-axis scale, a
   crosshair on a two-axis one."
-  [^js ctx objects {:keys [x y w h kind] :as o} theme zoom]
-  (when-let [[ax ay] (geom/average o (geom/dots-in objects o))]
+  [^js ctx dots {:keys [x y w h kind] :as o} theme zoom]
+  (when-let [[ax ay] (geom/average o dots)]
     (let [px (+ x (* ax w)) py (- (+ y h) (* ay h))]
       (set! (.-strokeStyle ctx) (:accent theme))
       (set! (.-lineWidth ctx) 2)
@@ -140,8 +144,8 @@
 
 (defn- readout!
   "What a measuring box measured, outside it on its :side (default bottom)."
-  [^js ctx objects {:keys [x y w h side] :as o} theme]
-  (let [gap 8
+  [^js ctx dots {:keys [x y w h side] :as o} theme]
+  (let [gap readout-gap
         [tx ty align baseline] (case side
                                  :top [(+ x (/ w 2)) (- y gap) "center" "bottom"]
                                  :left [(- x gap) (+ y (/ h 2)) "right" "middle"]
@@ -151,19 +155,20 @@
     (set! (.-fillStyle ctx) (:text-strong theme))
     (set! (.-textAlign ctx) align)
     (set! (.-textBaseline ctx) baseline)
-    (.fillText ctx (model/readout objects o) tx ty)))
+    (.fillText ctx (model/readout o dots) tx ty)))
 
 (defn- box! [^js ctx objects {:keys [x y w h kind] :as o} theme zoom]
-  (.save ctx)
-  (set! (.-strokeStyle ctx) (:sub theme))
-  (.beginPath ctx)
-  (.roundRect ctx x y w h frame-radius)
-  (.stroke ctx)
-  (when (not= :counter kind)
-    (ticks! ctx o theme)
-    (average! ctx objects o theme zoom))
-  (readout! ctx objects o theme)
-  (.restore ctx))
+  (let [dots (geom/dots-in objects o)]
+    (.save ctx)
+    (set! (.-strokeStyle ctx) (:sub theme))
+    (.beginPath ctx)
+    (.roundRect ctx x y w h frame-radius)
+    (.stroke ctx)
+    (when (not= :counter kind)
+      (ticks! ctx o theme)
+      (average! ctx dots o theme zoom))
+    (readout! ctx dots o theme)
+    (.restore ctx)))
 
 (defn- object! [^js ctx objects o editing-id theme zoom]
   (set! (.-lineWidth ctx) 2)

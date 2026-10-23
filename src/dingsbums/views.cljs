@@ -209,7 +209,10 @@
                             menu (events/open-menu sel-menu sel)
                             os (vec (keep #(get objects %) sel))
                             b (geom/bounds (keep #(geom/obj-rect objects %) os))
-                            pos (when b (geom/world->screen cam [(+ (:x b) (/ (:w b) 2)) (:y b)]))
+                            boxes (filter #(geom/box-kinds (:kind %)) os)
+                            ;; above a number shown on top of a box, not over it
+                            lift (if (some #(= :top (:side %)) boxes) board/readout-room 0)
+                            pos (when b (geom/world->screen cam [(+ (:x b) (/ (:w b) 2)) (- (:y b) lift)]))
                             show? (boolean (and pos (nil? drag) (nil? editing)))
                             cx (if pos (first pos) 0)
                             top (if pos (max 8 (- (second pos) 56)) 0)
@@ -217,8 +220,8 @@
                                      (and (seq os) (every? #(= :shape (:kind %)) os)) model/swatches
                                      (and (seq os) (every? #(model/fill-kinds (:kind %)) os)) (rest model/swatches))
                             fills (set (map :fill os))
-                            boxes? (boolean (and (seq os) (every? #(geom/box-kinds (:kind %)) os)))
-                            box-sides (set (map #(:side % :bottom) os))
+                            box-sides (set (map #(:side % :bottom) boxes))
+                            boxes-locked? (every? :locked? boxes)
                             texts? (boolean (and (seq os) (every? #(model/text-kinds (:kind %)) os)))
                             text-colors (set (map :color os))
                             locked? (boolean (and (seq os) (every? :locked? os)))
@@ -246,10 +249,12 @@
                                           :style {:background-color (or c "transparent")}
                                           :on-click [:selection/text-color c]}
                           (when-not c "A")])])]
-   [:span.menu {:hidden (or (not boxes?) locked?)}
+   ;; for the boxes among the selection; none, or all locked: hidden
+   [:span.menu {:hidden boxes-locked?}
     [:button.menu-button {:title "Where the number goes" :class (when (= menu :side) "active")
                           :on-click [:selection/menu :side]}
-     (icons (if (= 1 (count box-sides)) (first box-sides) :bottom))]
+     ;; boxes with different sides: the plain box icon
+     (icons (if (= 1 (count box-sides)) (first box-sides) :counter))]
     (when (= menu :side)
       [:div.sel-menu.column
        (for [[k label] sides]

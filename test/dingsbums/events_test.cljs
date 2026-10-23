@@ -158,6 +158,9 @@
   (testing "dots and measuring boxes"
     (is (= [{:kind :dot :x 288 :y 288 :w 24 :h 24 :fill "#e57373"}]
            (map #(select-keys % [:kind :x :y :w :h :fill]) (objects-of (drag (assoc board :tool :dot) [300 300] [300 300])))))
+    (is (= [{:x 288 :y 288 :w 24 :h 24}]
+           (map #(select-keys % [:x :y :w :h]) (objects-of (drag (assoc board :tool :dot) [300 300] [340 310]))))
+        "a dot keeps its size: a shaky click still places it where it started")
     (doseq [k [:counter :scale-x :scale-xy]]
       (is (= [k] (map :kind (objects-of (drag (assoc board :tool k) [0 0] [0 0])))) k)))
   (testing "the tool at the press counts, not a key pressed mid-drag"

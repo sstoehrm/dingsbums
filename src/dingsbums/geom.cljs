@@ -140,9 +140,12 @@
 ;; measuring boxes
 
 (defn dots-in
-  "The dots whose center lies in box."
-  [objects box]
-  (filter #(and (= :dot (:kind %)) (inside? box (center %))) (vals objects)))
+  "The dots whose center lies in box; its right and bottom edge belong to the
+  next box, so touching boxes never both count a dot."
+  [objects {:keys [x y w h]}]
+  (filter #(and (= :dot (:kind %))
+                (let [[cx cy] (center %)] (and (<= x cx) (< cx (+ x w)) (<= y cy) (< cy (+ y h)))))
+          (vals objects)))
 
 (defn average
   "[x y]: the mean position of dots in box, each 0–1 from its left and its

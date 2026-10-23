@@ -122,16 +122,16 @@
         (unlocked objects ids)))
 
 (defn readout
-  "What measuring box shows: a counter the number of dots in it, a scale
-  their average position on 0–scale-max (x, or x · y with y counting up)."
-  [objects box]
-  (let [dots (geom/dots-in objects box)]
-    (if (= :counter (:kind box))
-      (str (count dots))
-      (if-let [[ax ay] (geom/average box dots)]
-        (str "Ø " (.toFixed (* scale-max ax) 1)
-             (when (= :scale-xy (:kind box)) (str " · " (.toFixed (* scale-max ay) 1))))
-        "Ø –"))))
+  "What measuring box shows for the dots in it (geom/dots-in): a counter how
+  many, a scale their average position on 0–scale-max (x, or x · y with y
+  counting up)."
+  [box dots]
+  (if (= :counter (:kind box))
+    (str (count dots))
+    (if-let [[ax ay] (geom/average box dots)]
+      (str "Ø " (.toFixed (* scale-max ax) 1)
+           (when (= :scale-xy (:kind box)) (str " · " (.toFixed (* scale-max ay) 1))))
+      "Ø –")))
 
 (defn- step-up
   "v with each selected object one place up, past the unselected one above it."

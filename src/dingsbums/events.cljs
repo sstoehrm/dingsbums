@@ -290,7 +290,8 @@
 (defn- create-object [db {:keys [kind start]} end]
   (let [r (geom/rect-from-points start end)
         [dw dh] (model/default-size kind)
-        rect (if (and (< (:w r) 5) (< (:h r) 5))
+        ;; a dot is always placed like a click: dots in a vote stay alike
+        rect (if (or (= kind :dot) (and (< (:w r) 5) (< (:h r) 5)))
                {:x (- (first start) (/ dw 2)) :y (- (second start) (/ dh 2)) :w dw :h dh}
                (-> r (update :w max geom/min-size) (update :h max geom/min-size)))
         o (model/make (:objects db) kind rect (when (= kind :shape) {:shape (:shape-kind db)}))]
