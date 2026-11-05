@@ -30,32 +30,40 @@
 
 (defn- on-keyup [^js e] (when (= " " (.-key e)) (dispatch [:space false])))
 
+(defn- paste-svg! [{:keys [src w h]}] (dispatch [:paste/image src w h]))
+
 (defn- paste-image! [^js file]
-  (let [r (js/FileReader.)]
+  (let [r (js/FileReader.)
+        svg? (= "image/svg+xml" (.-type file))]
     (set! (.-onload r)
           (fn [_]
-            (let [src (.-result r)
-                  img (js/Image.)]
-              (set! (.-onload img) (fn [_] (dispatch [:paste/image src (.-naturalWidth img) (.-naturalHeight img)])))
-              (set! (.-src img) src))))
-    (.readAsDataURL r file)))
+            (let [src (.-result r)]
+              (if svg?
+                (some-> (events/svg-image src) paste-svg!)
+                (let [img (js/Image.)]
+                  (set! (.-onload img) (fn [_] (dispatch [:paste/image src (.-naturalWidth img) (.-naturalHeight img)])))
+                  (set! (.-src img) src))))))
+    ;; an SVG as markup, to give it a size it may not have
+    (if svg? (.readAsText r file) (.readAsDataURL r file))))
 
 (defonce ^:private copies (atom 0))
 
 (defn- png-blob
   "A promise of the image at src as a PNG, the image type every clipboard takes;
   it fails once another copy came after copy n, so a slow image can't replace it."
-  [src n]
+  [src size n]
   (js/Promise.
    (fn [ok fail]
      (let [img (js/Image.)]
        (set! (.-onload img)
              (fn [_]
                (try
-                 (let [c (js/document.createElement "canvas")]
-                   (set! (.-width c) (.-naturalWidth img))
-                   (set! (.-height c) (.-naturalHeight img))
-                   (.drawImage (.getContext c "2d") img 0 0)
+                 ;; an SVG without a size of its own has none: its size on the board
+                 (let [c (js/document.createElement "canvas")
+                       [w h] (if (pos? (.-naturalWidth img)) [(.-naturalWidth img) (.-naturalHeight img)] (map js/Math.ceil size))]
+                   (set! (.-width c) w)
+                   (set! (.-height c) h)
+                   (.drawImage (.getContext c "2d") img 0 0 w h)
                    (.toBlob c #(if (and % (= n @copies)) (ok %) (fail (js/Error. "no PNG"))) "image/png"))
                  ;; a tainted or too large canvas
                  (catch :default err (fail err)))))
@@ -64,15 +72,23 @@
 
 (defn- write-image!
   "Puts a copied image on the system clipboard as a picture for other apps, the
-  copy riding along in its HTML. Without the async clipboard (plain http, older
+  copy riding along in its HTML. An SVG also goes as its markup, and as SVG
+  where the browser can. Without the async clipboard (plain http, older
   browsers) or when it refuses, the copy event's data stays: dingsbums only."
-  [src data n]
+  [{:keys [image data size]} n]
   (when (and (exists? js/ClipboardItem) (some-> js/navigator .-clipboard .-write))
     (try
-      (-> (.write (.-clipboard js/navigator)
-                  #js [(js/ClipboardItem. #js {"image/png" (png-blob src n)
-                                               "text/html" (js/Blob. #js [(events/copy-html data src)] #js {:type "text/html"})})])
-          (.catch (fn [_] nil)))
+      (let [svg (events/svg-text image)
+            blob (fn [s t] (js/Blob. #js [s] #js {:type t}))
+            types (cond-> {"image/png" (png-blob image size n)
+                           "text/html" (blob (events/copy-html data image) "text/html")}
+                    ;; the write replaces what the copy event put there
+                    svg (assoc "text/plain" (blob svg "text/plain"))
+                    ;; an unsupported type fails the whole write
+                    (and svg (some-> js/ClipboardItem .-supports (.call js/ClipboardItem "image/svg+xml")))
+                    (assoc "image/svg+xml" (blob svg "image/svg+xml")))]
+        (-> (.write (.-clipboard js/navigator) #js [(js/ClipboardItem. (clj->js types))])
+            (.catch (fn [_] nil))))
       (catch :default _ nil))))
 
 (defn- on-copy
@@ -80,12 +96,12 @@
   [^js e]
   (swap! copies inc)
   (when-not (or (typing? e) (not (.-isCollapsed (js/getSelection))))
-    (when-let [{:keys [data text image]} (events/copy-payload @state/app-db)]
+    (when-let [{:keys [data text image] :as payload} (events/copy-payload @state/app-db)]
       (.preventDefault e)
       (.setData (.-clipboardData e) events/clipboard-type data)
       (.setData (.-clipboardData e) "text/plain" text)
       ;; after the event: Firefox refuses an async write inside a handled copy event
-      (when image (let [n @copies] (js/setTimeout #(write-image! image data n) 0))))))
+      (when image (let [n @copies] (js/setTimeout #(write-image! payload n) 0))))))
 
 (defn- on-paste [^js e]
   (when-not (or (typing? e) (modal?))
@@ -96,9 +112,12 @@
                        (when (and (= "file" (.-kind item)) (str/starts-with? (.-type item) "image/"))
                          (.getAsFile item)))
                      (js/Array.from (.-items data)))
-          text (.getData data "text/plain")]
+          text (.getData data "text/plain")
+          svg (some events/svg-image [(.getData data "image/svg+xml") text])]
       (cond
         objs (do (.preventDefault e) (dispatch [:paste/objects objs]))
+        ;; the vector before a picture of it
+        svg (do (.preventDefault e) (paste-svg! svg))
         file (do (.preventDefault e) (paste-image! file))
         (not (str/blank? text)) (do (.preventDefault e) (dispatch [:paste/text text]))))))
 

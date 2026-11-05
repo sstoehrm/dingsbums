@@ -391,6 +391,32 @@
   (is (nil? (ev/paste-text (assoc board :loading? true) "x")) "ignored until the snapshot, which would drop it")
   (is (nil? (ev/paste-image (assoc board :loading? true) "data:image/png;base64,AA" 10 10))))
 
+(defn- svg-markup
+  "The markup in an SVG data URL from svg-image."
+  [src] (ev/svg-text src))
+
+(deftest svg-images
+  (let [{:keys [src w h]} (ev/svg-image "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"20\"><rect width=\"40\" height=\"20\"/></svg>")]
+    (is (re-find #"^data:image/svg\+xml;base64," src) "base64, the form an export takes apart")
+    (is (= [40 20] [w h]))
+    (is (re-find #"<rect" (svg-markup src))))
+  (let [{:keys [src w h]} (ev/svg-image "<svg viewBox=\"0 0 300 100\"><circle r=\"5\"/></svg>")]
+    (is (= [300 100] [w h]) "no size: the viewBox gives it")
+    (is (re-find #"width=\"300\"" (svg-markup src)) "and is written in, so every browser can draw it")
+    (is (re-find #"xmlns=\"http://www.w3.org/2000/svg\"" (svg-markup src)) "markup from HTML gets its namespace"))
+  (is (= [300 150] ((juxt :w :h) (ev/svg-image "<svg width=\"100%\"></svg>"))) "neither: the browser default")
+  (is (= [200 100] ((juxt :w :h) (ev/svg-image "<svg width=\"50%\" viewBox=\"0 0 200 100\"></svg>"))) "percentages are no size")
+  (is (= [96 48] ((juxt :w :h) (ev/svg-image "<svg width=\"1in\" height=\"0.5in\"></svg>"))) "absolute units in px")
+  (is (= [10 10] ((juxt :w :h) (ev/svg-image "<?xml version=\"1.0\"?>\n<!-- made -->\n<svg width=\"10px\" height=\"10\"></svg>\n"))))
+  (is (re-find #"Grüße ✓" (svg-markup (:src (ev/svg-image "<svg><text>Grüße ✓</text></svg>")))) "any text survives base64")
+  (is (nil? (ev/svg-image "hello")))
+  (is (nil? (ev/svg-image "<p>not svg</p>")))
+  (is (nil? (ev/svg-image "<svg><unclosed></svg>")) "not well-formed")
+  (is (nil? (ev/svg-image "see <svg></svg> here")) "text that mentions svg")
+  (is (nil? (ev/svg-image nil)))
+  (is (nil? (ev/svg-text "data:image/png;base64,AA")) "not an SVG")
+  (is (= "<svg/>" (ev/svg-text "data:image/svg+xml;charset=utf-8,%3Csvg%2F%3E")) "URL-encoded SVG too"))
+
 (def line {:id "c" :kind :connection :from "a" :to "b" :z 3})
 (def picture {:id "d" :kind :image :x 0 :y 300 :w 60 :h 40 :z 4 :src "data:image/png;base64,AA"})
 (def copyable (assoc board :viewport [800 600] :objects {"a" sticky "b" shape "c" line "d" picture}))
@@ -417,6 +443,10 @@
         html (ev/copy-html data (:src picture))]
     (is (= [picture] (ev/read-copied (ev/html-copied html))) "the copy rides along in the HTML")
     (is (re-find #"<img src=\"data:image/png" html) "apps that take HTML see the picture"))
+  (let [vector (assoc picture :src (:src (ev/svg-image "<svg width=\"4\" height=\"4\"/>")))
+        p (ev/copy-payload (assoc copyable :objects {"d" vector} :selection #{"d"}))]
+    (is (re-find #"^<svg" (:text p)) "an SVG goes out as its markup for text editors")
+    (is (= (:src vector) (:image p)) "and as a picture"))
   (is (nil? (ev/html-copied "<p>hello <img src=\"x.png\"></p>")) "HTML from elsewhere")
   (is (nil? (ev/html-copied nil))))
 

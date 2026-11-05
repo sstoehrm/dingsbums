@@ -8,5 +8,7 @@
     (set! js/globalThis.window w)
     (set! js/globalThis.document (.-document w))
     (set! js/globalThis.location (.-location w))
+    (set! js/globalThis.DOMParser (.-DOMParser w))
+    (set! js/globalThis.XMLSerializer (.-XMLSerializer w))
     (set! js/globalThis.requestAnimationFrame (fn [f] (js/setTimeout f 16)))
     d))

@@ -55,12 +55,14 @@ can't think of right now. That's what a whiteboard is full of.
   small objects or when zoomed far out, where the resize handles cover them.
 - The arrow keys move a selection by one unit, with Shift by ten; holding a
   key is one step to undo.
-- Paste images and text straight onto the board.
+- Paste images and text straight onto the board. SVG, as a file or as
+  markup, lands as a picture that stays sharp at any zoom.
 - Copy and paste (Ctrl+C, Ctrl+V) whatever is selected, images included, also
   into another board: the copies keep their layout and the connections
   between them, and land beside the originals or in the middle of the view.
   A single copied image also pastes as a picture into other apps (on https or
-  localhost; elsewhere the browser keeps copies within dingsbums).
+  localhost; elsewhere the browser keeps copies within dingsbums); an SVG
+  goes as SVG too, and as its markup into a text editor.
 - An infinite canvas: scroll to pan (shift + wheel sideways), ctrl + wheel or
   the + and − buttons to zoom.
 - Hand mode (the hand beside the zoom, or H) for a mouse: drag the empty canvas to
