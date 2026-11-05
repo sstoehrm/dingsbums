@@ -391,27 +391,33 @@
   (is (nil? (ev/paste-text (assoc board :loading? true) "x")) "ignored until the snapshot, which would drop it")
   (is (nil? (ev/paste-image (assoc board :loading? true) "data:image/png;base64,AA" 10 10))))
 
-(defn- svg-markup
-  "The markup in an SVG data URL from svg-image."
-  [src] (ev/svg-text src))
-
 (deftest svg-images
   (let [{:keys [src w h]} (ev/svg-image "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"20\"><rect width=\"40\" height=\"20\"/></svg>")]
     (is (re-find #"^data:image/svg\+xml;base64," src) "base64, the form an export takes apart")
     (is (= [40 20] [w h]))
-    (is (re-find #"<rect" (svg-markup src))))
+    (is (re-find #"<rect" (ev/svg-text src))))
   (let [{:keys [src w h]} (ev/svg-image "<svg viewBox=\"0 0 300 100\"><circle r=\"5\"/></svg>")]
     (is (= [300 100] [w h]) "no size: the viewBox gives it")
-    (is (re-find #"width=\"300\"" (svg-markup src)) "and is written in, so every browser can draw it")
-    (is (re-find #"xmlns=\"http://www.w3.org/2000/svg\"" (svg-markup src)) "markup from HTML gets its namespace"))
+    (is (re-find #"width=\"300\"" (ev/svg-text src)) "and is written in, so every browser can draw it")
+    (is (re-find #"xmlns=\"http://www.w3.org/2000/svg\"" (ev/svg-text src)) "markup from HTML gets its namespace"))
   (is (= [300 150] ((juxt :w :h) (ev/svg-image "<svg width=\"100%\"></svg>"))) "neither: the browser default")
   (is (= [200 100] ((juxt :w :h) (ev/svg-image "<svg width=\"50%\" viewBox=\"0 0 200 100\"></svg>"))) "percentages are no size")
   (is (= [96 48] ((juxt :w :h) (ev/svg-image "<svg width=\"1in\" height=\"0.5in\"></svg>"))) "absolute units in px")
   (is (= [10 10] ((juxt :w :h) (ev/svg-image "<?xml version=\"1.0\"?>\n<!-- made -->\n<svg width=\"10px\" height=\"10\"></svg>\n"))))
-  (is (re-find #"Grüße ✓" (svg-markup (:src (ev/svg-image "<svg><text>Grüße ✓</text></svg>")))) "any text survives base64")
+  (is (re-find #"Grüße ✓" (ev/svg-text (:src (ev/svg-image "<svg><text>Grüße ✓</text></svg>")))) "any text survives base64")
+  (let [t (js/Date.now)]
+    (is (nil? (ev/svg-image (str (apply str (repeat 40 "<!-- c -->\n")) "<p>"))))
+    (is (< (- (js/Date.now) t) 1000) "many comments and no SVG: no backtracking for minutes"))
+  (is (= [10 10] ((juxt :w :h) (ev/svg-image "<?xml version=\"1.0\"?>\n<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" \"x.dtd\" [\n<!ENTITY ns_flows \"http://ns.adobe.com/Flows/1.0/\">\n]>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\"/>")))
+      "a DOCTYPE with entities, as Illustrator writes")
+  (is (= [300 1] ((juxt :w :h) (ev/svg-image "<svg width=\"1e999\" height=\"1\" viewBox=\"0 0 1e999 1\"/>"))) "no infinite size")
+  (is (some? (ev/svg-image "<svg><image xlink:href=\"data:,\"/></svg>")) "markup out of a DOM inspector, xlink undeclared")
   (is (nil? (ev/svg-image "hello")))
   (is (nil? (ev/svg-image "<p>not svg</p>")))
-  (is (nil? (ev/svg-image "<svg><unclosed></svg>")) "not well-formed")
+  (is (re-find #"<unclosed/></svg>" (ev/svg-text (:src (ev/svg-image "<svg><unclosed></svg>")))) "sloppy markup as a page shows it, well-formed")
+  (is (nil? (ev/svg-image "<svg></svg><p>more</p>")) "not just an SVG")
+  (is (nil? (ev/svg-image "<svg></svg> and text")))
+  (is (re-find #"=\"http://www.w3.org/1999/xlink\"" (ev/svg-text (:src (ev/svg-image "<svg><image xlink:href=\"data:,\"/></svg>")))) "xlink declared, under some prefix")
   (is (nil? (ev/svg-image "see <svg></svg> here")) "text that mentions svg")
   (is (nil? (ev/svg-image nil)))
   (is (nil? (ev/svg-text "data:image/png;base64,AA")) "not an SVG")

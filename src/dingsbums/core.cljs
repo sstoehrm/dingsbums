@@ -32,19 +32,25 @@
 
 (defn- paste-svg! [{:keys [src w h]}] (dispatch [:paste/image src w h]))
 
-(defn- paste-image! [^js file]
-  (let [r (js/FileReader.)
-        svg? (= "image/svg+xml" (.-type file))]
+(defn- paste-picture! [^js file]
+  (let [r (js/FileReader.)]
     (set! (.-onload r)
           (fn [_]
-            (let [src (.-result r)]
-              (if svg?
-                (some-> (events/svg-image src) paste-svg!)
-                (let [img (js/Image.)]
-                  (set! (.-onload img) (fn [_] (dispatch [:paste/image src (.-naturalWidth img) (.-naturalHeight img)])))
-                  (set! (.-src img) src))))))
-    ;; an SVG as markup, to give it a size it may not have
-    (if svg? (.readAsText r file) (.readAsDataURL r file))))
+            (let [src (.-result r)
+                  img (js/Image.)]
+              (set! (.-onload img) (fn [_] (dispatch [:paste/image src (.-naturalWidth img) (.-naturalHeight img)])))
+              (set! (.-src img) src))))
+    (.readAsDataURL r file)))
+
+(defn- paste-image!
+  "Pastes an image file. An SVG goes in as markup, to give it a size it may not
+  have; one that won't parse as it is."
+  [^js file]
+  (if (= "image/svg+xml" (.-type file))
+    (let [r (js/FileReader.)]
+      (set! (.-onload r) (fn [_] (if-let [svg (events/svg-image (.-result r))] (paste-svg! svg) (paste-picture! file))))
+      (.readAsText r file))
+    (paste-picture! file)))
 
 (defonce ^:private copies (atom 0))
 
@@ -113,7 +119,7 @@
                          (.getAsFile item)))
                      (js/Array.from (.-items data)))
           text (.getData data "text/plain")
-          svg (some events/svg-image [(.getData data "image/svg+xml") text])]
+          svg (when-not objs (some events/svg-image [(.getData data "image/svg+xml") text]))]
       (cond
         objs (do (.preventDefault e) (dispatch [:paste/objects objs]))
         ;; the vector before a picture of it
