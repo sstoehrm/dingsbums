@@ -567,6 +567,75 @@
       (let [w (max 1 w) h (max 1 h) s (min 1 (/ 600 w) (/ 600 h))]
         (place db :image (* w s) (* h s) {:src src})))))
 
+;; SVG images
+
+(def ^:private svg-ns "http://www.w3.org/2000/svg")
+(def ^:private px-per {"" 1 "px" 1 "in" 96 "cm" (/ 96 2.54) "mm" (/ 96 25.4) "pt" (/ 4 3) "pc" 16})
+
+(defn- size [v] (when (and (js/isFinite v) (pos? v)) v))
+
+(defn- svg-length
+  "A width or height attribute in px, nil when it is missing or relative."
+  [s]
+  (when-let [[_ n unit] (some->> s str/trim (re-matches #"([0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s*([a-z]*)"))]
+    (when-let [k (px-per unit)] (size (* (js/parseFloat n) k)))))
+
+(defn- view-box-size [s]
+  (let [[_ _ w h :as vs] (some-> s str/trim (str/split #"[\s,]+") (->> (map js/parseFloat)))]
+    (when (and (= 4 (count vs)) (size w) (size h)) [w h])))
+
+(defn- base64-utf8 [s]
+  (let [bytes (.encode (js/TextEncoder.) s)]
+    (js/btoa (.join (js/Array.from bytes #(js/String.fromCharCode %)) ""))))
+
+(defn- svg-root
+  "The <svg> element s is, nil for anything else. Well-formed XML first, as
+  files are; else HTML, as markup copied out of a page is: there an <svg> needs
+  no xmlns and xlink no declaration."
+  [s]
+  (let [xml (.parseFromString (js/DOMParser.) s "image/svg+xml")
+        root (.-documentElement xml)]
+    (if (and (= svg-ns (.-namespaceURI root)) (= "svg" (.-localName root))
+             (zero? (.-length (.getElementsByTagName xml "parsererror"))))
+      root
+      (let [body (.-body (.parseFromString (js/DOMParser.) s "text/html"))
+            el (.-firstElementChild body)]
+        (when (and el (= svg-ns (.-namespaceURI el)) (= "svg" (.-localName el))
+                   (= 1 (.-childElementCount body))
+                   ;; nothing beside it but blanks and comments
+                   (str/blank? (str/replace (.-textContent body) (.-textContent el) "")))
+          el)))))
+
+(defn svg-image
+  "{:src :w :h} of SVG markup as a base64 data URL, nil for anything else. Its
+  size comes from width and height, else the viewBox, else the browser's
+  300×150, and is written in: Firefox draws no SVG without one."
+  [s]
+  (when-let [root (and (string? s) (str/starts-with? (str/triml s) "<") (str/includes? s "<svg") (svg-root s))]
+    ;; ^number: a size or nil, and nil never reaches the arithmetic
+    (let [^number w (svg-length (.getAttribute root "width"))
+          ^number h (svg-length (.getAttribute root "height"))
+          [vw vh] (view-box-size (.getAttribute root "viewBox"))
+          [w' h'] (cond (and w h) [w h]
+                        (and vw w) [w (* w (/ vh vw))]
+                        (and vh h) [(* h (/ vw vh)) h]
+                        vw [vw vh]
+                        :else [(or w 300) (or h 150)])]
+      (when-not w (.setAttribute root "width" (str w')))
+      (when-not h (.setAttribute root "height" (str h')))
+      {:src (str "data:image/svg+xml;base64,"
+                 (base64-utf8 (.serializeToString (js/XMLSerializer.) (if (= root (.. root -ownerDocument -documentElement)) (.-ownerDocument root) root))))
+       :w w' :h h'})))
+
+(defn svg-text
+  "The markup of an SVG data URL, nil for any other src."
+  [src]
+  (when-let [[_ b64? body] (and (string? src) (re-matches #"(?s)data:image/svg\+xml((?:;[^;,]*)*?;base64)?[^,]*,(.*)" src))]
+    (try (if b64?
+           (.decode (js/TextDecoder.) (js/Uint8Array.from (js/atob body) #(.charCodeAt % 0)))
+           (js/decodeURIComponent body))
+         (catch :default _ nil))))
+
 ;; copy and paste of board objects
 
 (def clipboard-type
@@ -577,7 +646,7 @@
 (defn copy-payload
   "{:data :text} for copying the selection, nil when nothing is selected: the
   selected objects and the connections between them. A lone image adds :image,
-  its src."
+  its src, and :size, its [w h] on the board; an SVG one has its markup as :text."
   [db]
   (let [objects (:objects db)
         ids (into #{} (remove #(= :connection (:kind (get objects %)))) (:selection db))
@@ -588,7 +657,9 @@
     (when (and (= :board (:route db)) (seq os))
       (cond-> {:data (pr-str {:dingsbums/objects (vec os)})
                :text (str/join "\n\n" (keep #(not-empty (:text %)) os))}
-        (and (= 1 (count os)) (= :image (:kind (first os)))) (assoc :image (:src (first os)))))))
+        (and (= 1 (count os)) (= :image (:kind (first os))))
+        (as-> p (let [{:keys [src w h]} (first os) svg (svg-text src)]
+                 (cond-> (assoc p :image src :size [w h]) svg (assoc :text svg))))))))
 
 (defn- inert-template
   "A <template>: HTML put into it loads no images and runs nothing."

@@ -55,3 +55,11 @@
   (is (thrown? clojure.lang.ExceptionInfo (tar/import-session (tar/write-tar [["session.edn" (utf8 "{:objects")]]))))
   (is (thrown? clojure.lang.ExceptionInfo (tar/import-session (tar/write-tar [["session.edn" (utf8 "[1 2]")]]))))
   (is (thrown? clojure.lang.ExceptionInfo (tar/import-session (byte-array 3)))))
+
+(deftest svg-images-round-trip
+  (let [svg "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"4\" height=\"4\"/>"
+        o {:id "v" :kind :image :x 0 :y 0 :w 4 :h 4
+           :src (str "data:image/svg+xml;base64," (.encodeToString (Base64/getEncoder) (utf8 svg)))}
+        tarball (tar/export-session {"v" o})]
+    (is (= svg (text (get (tar/read-tar tarball) "images/v.svg"))) "a pasted SVG exports as an .svg file")
+    (is (= {"v" o} (:objects (tar/import-session tarball))))))
